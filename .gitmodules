@@ -1,0 +1,3 @@
+[submodule "wiki"]
+	path = .wiki
+	url = git@codeberg.org:ramin_hal9001/gypsum.wiki.git
