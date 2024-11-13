@@ -1,0 +1,8 @@
+(load "gypsum/lens-tests.scm")
+(load "gypsum/lens/vector-tests.scm")
+(load "gypsum/lens/bin-hash-table-tests.scm")
+(load "gypsum/pretty-tests.scm")
+(load "gypsum/keymap-tests.scm")
+(load "gypsum/concurrent-tests.scm")
+(load "gypsum/cursor-tests.scm")
+(load "gypsum/match-tests.scm")
