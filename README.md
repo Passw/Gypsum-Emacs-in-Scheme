@@ -17,6 +17,16 @@ Although this project is still incomplete and experimental, the goals of this pr
 - provide a cross-platform GUI library like [Racket/GUI](https://docs.racket-lang.org/gui/ ) or [McCLIM](https://mcclim.common-lisp.dev/ )
 - be able to develop Gypsum from within it's own editor, create pull requests in Git.
 
+## The Wiki
+
+The wiki documents several of the important libraries in this source
+code.
+
+- [`(gypsum pretty)`](../../../wiki/PrettyPrinter.md): a pretty printer
+- [`(gypsum match)`](../../../wiki/PatternMatcher.md): a pattern matcher
+- [`(gypsum cursor)`](../../../wiki/Cursor.md): an iterator-like object
+- [Intro to monads](../../../wiki/Monads.md)
+
 ## How to build
 
 As of right now, this project only runs on Guile Scheme, although
