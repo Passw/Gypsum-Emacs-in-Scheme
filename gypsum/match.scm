@@ -101,14 +101,14 @@
    ))
 
 
-(define (%run-matcher input output cc final . procs)
+(define (%run-matcher input cc final . procs)
   ;; Initializes the matcher state, applies `PROCS` to `TRY` to
   ;; construct the monad, and applies the monad and state to
   ;; `%RUN`. The `FINAL` is used to adapt the final number of values
   ;; returned based on the continuation from which this procedure was
   ;; called: `RUN-MATCHER` requires only one value be returned,
   ;; `RUN-MATCHER/CC` needs three `VALUES`.
-  (let*((st (make<matcher-state> input output '() cc #f))
+  (let*((st (make<matcher-state> input #f '() cc #f))
         (result (%run st (apply try procs)))
         )
     (final result)
@@ -120,7 +120,7 @@
 ;; resuming it if it is ever `PAUSE`d.
 
 
-(define (run-matcher input output . procs)
+(define (run-matcher input . procs)
   ;; Initialize a pattern matcher state with an input and an output.
   ;; There must any number of primitive matching actions (combinators)
   ;; applied after the first two arguments, these will all be applied
@@ -131,7 +131,7 @@
   ;; result in an exception being raised. To run a matcher that can be
   ;; paused, use `RUN-MTCHER/CC`.
   ;;------------------------------------------------------------------
-  (apply %run-matcher input output #f
+  (apply %run-matcher input #f
    (lambda (result)
      (cond
       ((matcher-state-type? result) (matcher-state-output result))
@@ -142,7 +142,7 @@
    procs))
 
 
-(define (run-matcher/cc input output . procs)
+(define (run-matcher/cc input . procs)
   ;; Initialize a pattern matcher state with an input and an output.
   ;; There must any number of primitive matching actions (combinators)
   ;; applied after the first two arguments, these will all be applied
@@ -163,7 +163,7 @@
         (call/cc
          (lambda (cc)
            (apply
-            %run-matcher input output cc
+            %run-matcher input cc
             (lambda (st) (values st #f #f)) procs)
            )))
        )
@@ -366,6 +366,15 @@
         )))
     ))
 
+(define (is . predicates)
+  ;; This is a "guard" primitive similar to `CHECK`, except that it
+  ;; assumes the pattern matcher input state is a `CURSOR-OBJECT` and
+  ;; applies the predicate to the value under the cursor, not to the
+  ;; cursor object itself.
+  ;;------------------------------------------------------------------
+  (apply check cursor-ref predicates)
+  )
+
 
 (define next
   ;; Apply the functor to the current input, updating it. If no
@@ -375,11 +384,11 @@
   ;;------------------------------------------------------------------
   (case-lambda
     (() (next (lambda (obj) (cursor-step! obj) obj)))
-    ((f . fs)
+    (fs
      (%monad
       (lambda (st)
         (update
-         (apply endo-view f fs)
+         (apply endo-view fs)
          st =>matcher-state-input!))))))
 
 
@@ -408,7 +417,7 @@
    ))
 
 
-(define put
+(define put-const
   ;; This monad is similar to `PUT-WITH` but ignores input and output
   ;; and simply stored the given value to the current output,
   ;; overwriting it.
@@ -416,6 +425,16 @@
   (case-lambda
     (() (put-with (lambda (i o) o)))
     ((val) (put-with (lambda _ val)))))
+
+
+(define (put . fs)
+  ;; Using this monad requires that the input be a cursor. This monad
+  ;; is similar to `PUT-WITH`, but applies the composition of all of
+  ;; it's function arguments to the result of `CURSOR-REF` on the
+  ;; current input cursor.
+  ;;------------------------------------------------------------------
+  (put-with (lambda (i o) ((apply endo-view fs) (cursor-ref i))))
+  )
 
 
 (define (next-then then-do . input-step)
@@ -528,38 +547,48 @@
       (lambda (st) (make<match-fail> message (matcher-state-input st) irritants))))))
 
 
-(define (return . getters)
-  ;; The `RETURN` monad is intended to be used in coordination with
-  ;; the `MONAD-APPLY` monad.
+(define return-if
+  ;; The `RETURN-IF` monad is intended to be used in coordination with
+  ;; the `MONAD-APPLY` monad. This monad is equivalent to:
   ;;
-  ;; This halts matching, applies its argument to the current input,
-  ;; and returns control to continuation where `RUN-MATCHER` or
-  ;; `RUN-MATCHER/CC` was evaluated. If `RETURN` is evaluated anywhere
-  ;; within a `MONAD-APPLY` monad, `MONAD-APPLY` will capture the
-  ;; value that was `RETURN`-ed (applied to return) and apply that
-  ;; value to the procedure to which `MONAD-APPLY` is being
-  ;; applied. This procedure takes zero or one argument. If applied
-  ;; zero arguments, it returns the current output as is. Here is an
-  ;; example of how to use it, the following will match the symbol
-  ;; `'X` and then `RETURN` the number that follows it, it then
-  ;; matches the symbol `Y` and `RETURN`s the numbers that follows it.
-  ;; The `MONAD-APPLY` procedure captures the two returned values and
-  ;; applies them to the `LAMBDA`, the result in this example should
-  ;; be 25.
+  ;; (try (check checker) (put selecter) (next stepper) (success))
   ;;
-  ;; (run-matcher '(X 3 Y 4) #f
-  ;;   (monad-apply
-  ;;    (lambda (x y) (put (+ (* x x) (* y y))))
-  ;;    (try (check-eq car 'X) (next cdr) (check car number?) (return car))
-  ;;    (try (next cdr) (check-eq car 'Y) (next cdr) (check car number?) (return car))
-  ;;    ))
+  ;; This checks the current input, places the current input to the
+  ;; current output, and then steps the current input. After stepping,
+  ;; matching is halted with the current output value as the return
+  ;; value.
+  ;;
+  ;; If `RETURN-IF` is evaluated anywhere within a `MONAD-APPLY`
+  ;; monad, `MONAD-APPLY` will capture the value that was returned and
+  ;; apply that value to the procedure to which `MONAD-APPLY` is being
+  ;; applied.
   ;;
   ;; See also the `RETURN-CONST` monad.
   ;;------------------------------------------------------------------
-  (let ((get (apply endo-view getters)))
-    (%monad
-     (lambda (st)
-       (make<match-success> (get (matcher-state-input st)) st)))))
+  (case-lambda
+    ((checker) (return-if checker #f #f))
+    ((checker selector) (return-if checker selector #f))
+    ((checker selector stepper)
+     (try
+      (cond
+       ((procedure? checker) (check checker))
+       ((matcher-monad-type? checker) checker)
+       (else (error "checker argument not a monad or procedure" checker))
+       )
+      (cond
+       ((not selector) (put))
+       ((procedure? selector) (put-with selector))
+       ((matcher-monad-type? selector) selector)
+       (else (error "selector argument not a monad or procedure" selector))
+       )
+      (cond
+       ((not stepper) (next))
+       ((procedure? stepper) (next stepper))
+       ((matcher-monad-type? stepper) stepper)
+       (else (error "stepper argument not a monad or procedure" stepper))
+       )
+      (success))
+     )))
 
 
 (define (return-const val)
@@ -690,7 +719,23 @@
 
 ;;--------------------------------------------------------------------------------------------------
 
-(define (derive-check predicate)
+(define (apply-deref deref)
+  (lambda (cur-input)
+    (cond
+     ((procedure? deref) (deref cur-input))
+     ((lens-type? deref) (view cur-input deref))
+     (else (error "not a dereferencing procedure or lens" deref))
+     )))
+
+
+(define (%derive-guard check/is equivalence)
+  (case-lambda
+    ((a) (check/is (lambda (b) (equivalence b a))))
+    ((deref a) (check/is (lambda (b) (equivalence ((apply-deref deref) b) a))))
+    ))
+
+
+(define (derive-check equivalence)
   ;; The `MAKE-CHECK` procedure is used to define variants of the
   ;; `CHECK` procedure. The `MAKE-CHECK` procedure is used to derive
   ;; the procedures `CHECK-EQ`, `CHECK-EQV`, `CHECKE-EQUAL` and so
@@ -698,18 +743,18 @@
   ;; two arguments:
   ;;
   ;;  - passing just one argument will mean to apply that argument to
-  ;;    the predicate along with the current input of the pattern
+  ;;    the equivalence along with the current input of the pattern
   ;;    matcher. For example, `(CHECK-EQUAL "yes")` will create a
   ;;    `CHECK` monad that tests if the current input is `EQUAL?` to
   ;;    the string `"true"`.
   ;;
-  ;;  - pass two arguments: (1) a dereferencer and (2) a predicate.
-  ;;    This is similar to calling `MAKE-CHECK` with 1 argument,
-  ;;    except that the current input is dereferenced before being
-  ;;    applied to the current input. For example, evaluating the
-  ;;    expression `(CHECK-EQUAL CAR 0)` will construct a `CHECK`
+  ;;  - pass two arguments: (1) a dereferencer and (2) an equivalence
+  ;;    function.  This is similar to calling `MAKE-CHECK` with 1
+  ;;    argument, except that the current input is dereferenced before
+  ;;    being applied to the current input. For example, evaluating
+  ;;    the expression `(CHECK-EQUAL CAR 0)` will construct a `CHECK`
   ;;    monad that first applies `CAR` to the current input, then
-  ;;    applies that and 0 as an argument to the `EQUAL?` predicate.
+  ;;    applies that and 0 as an argument to the `EQUAL?` equivalence.
   ;;
   ;;    The dereferencer is typically a procedure like `CAR`, but it
   ;;    may also be a value of one of three other types:
@@ -725,21 +770,12 @@
   ;;    - `#F` will not dereference the current input, similar to
   ;;      passing only one argument.
   ;;
-  ;; **Note:** that whatever `PREDICATE` is supplied, the current
+  ;; **Note:** that whatever `EQUIVALENCE` is supplied, the current
   ;; input is applied as the first argument. So the monad `(CHECK> 0)`
   ;; is checking if the current input is greater than zero.
   ;;------------------------------------------------------------------
-  (case-lambda
-    ((a) (check (lambda (b) (predicate b a))))
-    ((deref a)
-     (cond
-      ((procedure?   deref) (check (lambda (b) (predicate (deref b) a))))
-      ((lens-type?   deref) (check (lambda (b) (predicate (view b deref) a))))
-      ((boolean=? #t deref) (check (lambda (b) (predicate (cursor-object b) a))))
-      ((boolean=? #f deref) (check (lambda (b) (predicate b a))))
-      (else (error "not a dereferencing procedure or lens" deref))
-      ))
-    ))
+  (%derive-guard check equivalence)
+  )
 
 (define check-eq    (derive-check eq?))
 (define check-eqv   (derive-check eqv?))
@@ -749,3 +785,18 @@
 (define check>=     (derive-check >=))
 (define check<      (derive-check <))
 (define check<=     (derive-check <=))
+
+(define (derive-is equivalence)
+  ;; Similar to `DERIVE-CHECK` except that the `EQUIVALENCE` is appled
+  ;; to `IS` rather than `CHECK`.
+  ;;------------------------------------------------------------------
+  (%derive-guard is equivalence))
+
+(define is-eq    (derive-is eq?))
+(define is-eqv   (derive-is eqv?))
+(define is-equal (derive-is equal?))
+(define is=      (derive-is =))
+(define is>      (derive-is >))
+(define is>=     (derive-is >=))
+(define is<      (derive-is <))
+(define is<=     (derive-is <=))

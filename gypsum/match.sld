@@ -13,15 +13,17 @@
           update update&view lens-set
           lens-type? record-unit-lens
           )
-    (only (gypsum cursor) cursor-object cursor-step!)
+    (only (gypsum cursor)
+          cursor-object cursor-ref cursor-step!)
     )
   (export
    ;; ---------- The monadic combinators ----------
    ;; These all construct an object that satisfy the
    ;; `MATCHER-MONAD-TYPE?` predicate.
-   try  either  many  check  next  next-then  into  put  put-with
-   /input  /output  effect  skip  fail  success  pause
-   return  return-const monad-apply
+   try  either  many  check  next  next-then  into
+   put  put-const  put-with  return-if  success
+   /input  /output  effect  skip  fail  pause
+   return-const  monad-apply
    matcher-monad-type?
 
    do-and ;; another name for `TRY`
@@ -31,6 +33,10 @@
    check-eq  check-eqv  check-equal
    check=  check>  check>=  check<  check<=
    derive-check
+
+   is  is-eq  is-eqv  is-equal
+   is=  is>  is>=  is<  is<=
+   derive-is
 
    ;; ---------- The matcher state -----------
    ;; How to actually evaluate a matcher monad

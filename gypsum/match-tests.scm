@@ -2,6 +2,7 @@
   (scheme base)
   (gypsum lens)
   (gypsum match)
+  (only (gypsum cursor) new-cursor cursor-ref)
   (srfi 64)
   )
 
@@ -9,13 +10,15 @@
 
 
 (define push-stack (put-with cons))
+(define put-car (put-with (lambda (i o) (car i))))
 (define increment (next (lambda (n) (+ 1 n))))
 (define dbgin (/input (lambda (in) (display "input: ")(write in)(newline) skip)))
 (define dbgout (/output (lambda (out) (display "outpu: ")(write out)(newline) skip)))
 
 (test-equal '(6)
   ;; Testing `CHECK`, `NEXT`, and `PUT`
-  (run-matcher 5 '()
+  (run-matcher 5
+   (put-const '())
    (check odd?)
    increment
    push-stack
@@ -24,7 +27,7 @@
 (test-equal "!! match failed !!"
   ;; Testing `EITHER`
   (match-fail-message
-   (run-matcher 'Z '()
+   (run-matcher 'Z
     (either
      (check (lambda (s) (eq? s 'A)))
      (fail "that didn't work")
@@ -47,31 +50,69 @@
        )
   )
 
-(test-equal '(1 2 1) (run-matcher 0 '() test-into))
+(test-equal '(1 2 1) (run-matcher 0 (put-const '()) test-into))
 
 (define test-derive-check
   (either
-   (try (check> 0) (put #t))
-   (put #f))
+   (try (check> 0) (put-const #t))
+   (put-const #f))
   )
 
-(test-assert (run-matcher 1 '() test-derive-check))
+(test-assert (run-matcher 1 test-derive-check))
 
 (define test-monad-apply
   ;; Testing `MONAD-APPLY` and `RETURN`
   (monad-apply
-   (lambda (x y) (put (+ (* x x) (* y y))))
-   (try (check-eq car 'X) (next cdr) (check car number?) (return car))
-   (try (next cdr) (check-eq car 'Y) (next cdr) (check car number?) (return car))
+   (lambda (x y) (put-const (+ (* x x) (* y y))))
+   (try (check-eq car 'X)
+        (next cdr)
+        (return-if (endo car integer?) put-car cdr)
+        )
+   (try (check-eq car 'Y)
+        (next cdr)
+        (return-if (endo car integer?) put-car cdr)
+        )
    ))
 
-(test-equal 25 (run-matcher '(X 3 Y 4) #f test-monad-apply))
+(test-equal 25 (run-matcher '(X 3 Y 4) test-monad-apply))
+
+(define test-infix-1
+  (let ((infix
+         (lambda (op proc)
+           (try (check-eq cursor-ref op) (put-const proc)))))
+
+    (monad-apply
+
+     ;; The infix opreator evaluator:
+     (lambda (left-value  infix-op  right-value)
+       (put-const (infix-op  left-value  right-value)))
+
+     ;; applied to "left-value":
+     (try (check cursor-ref integer?) (put) (next) (success))
+
+     ;; applied to "infix-op":
+     (try
+       (either
+         (infix '+ +)
+         (infix '- -)
+         (infix '* *)
+         (infix '/ quotient)
+         (infix '% remainder))
+       (next)
+       (success))
+
+     ;; applied to "right-value":
+     (try (check cursor-ref integer?) (put) (next) (success))
+     )))
+
+(test-equal 3 (run-matcher (new-cursor '(1 + 2)) test-infix-1))
+
 
 (define (test-effect)
   (call-with-port (open-output-string)
     (lambda (port)
-      (run-matcher
-       0 '()
+      (run-matcher 0
+       (put-const '())
        (either
         (try increment
              (effect (lambda _ (display "one " port) #f)))
@@ -107,7 +148,7 @@
      push-stack
      maybe-pause
      (either
-      (try (check (lambda (n) (<= n 1))) (success))
+      (try (check<= 1) (success))
       (try (check odd?) (next (lambda (n) (+ 1 (* 3 n)))))
       (try (check even?) (next (lambda (n) (quotient n 2))))
       (fail "not an integer")
@@ -116,7 +157,7 @@
 
 (define collatz (make-collatz #f))
 
-(define (test-collatz init) (run-matcher init '() collatz))
+(define (test-collatz init) (run-matcher init (put-const '()) collatz))
 
 (test-equal '(1 2 4 8 16 5 10 20 40 13 26 52 17 34 11)
   (test-collatz 11))
@@ -134,7 +175,8 @@
 
 (define collatz/pause (make-collatz 9232))
 
-(define (test-collatz/cc init) (run-matcher/cc init '() collatz/pause))
+(define (test-collatz/cc init)
+  (run-matcher/cc init (put-const '()) collatz/pause))
 
 ;; Testing `PAUSE`, `CAN-RESUME?`, `RUN-RESUME`.
 (let*-values

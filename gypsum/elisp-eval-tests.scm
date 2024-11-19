@@ -14,6 +14,7 @@
         matcher-state-type?
         match-success-type?
         match-fail-type?
+        get-returned-value
         =>matcher-state-input!
         =>matcher-state-output!
         )

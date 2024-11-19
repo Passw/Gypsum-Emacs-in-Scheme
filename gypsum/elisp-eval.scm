@@ -595,7 +595,7 @@
   ;;  2. The exception that occurred, or `#F` if there was no
   ;;     exception.
   ;;------------------------------------------------------------------
-  (run-matcher/cc env #f (elisp-eval-step-into-form expr)))
+  (run-matcher/cc env (elisp-eval-step-into-form expr)))
 
 
 (define (elisp-eval->scheme env)
@@ -677,9 +677,9 @@
        (let ((sym (env-intern-soft st stmt)))
          (cond
           ((not sym) (elisp-error "void variable" stmt))
-          ((sym-type? sym) (put (sym-value sym)))
-          ((elisp-quote-scheme-type? sym) (put (elisp-unquote-scheme sym)))
-          (else (put sym))))
+          ((sym-type? sym) (put-const (sym-value sym)))
+          ((elisp-quote-scheme-type? sym) (put-const (elisp-unquote-scheme sym)))
+          (else (put-const sym))))
        )))
    ((or (pair? stmt) ;; cursors can be constructed from one of these types
         (vector? stmt)
@@ -689,9 +689,9 @@
         (string? stmt)
         (boolean? stmt)
         (char? stmt)) ;; simply return the value as it is
-    (put stmt))
+    (put-const stmt))
    ((elisp-quote-scheme-type? stmt)
-    (put (elisp-unquote-scheme stmt)))
+    (put-const (elisp-unquote-scheme stmt)))
    (else (elisp-error "no semantics for statement" stmt))
    ))
 
@@ -879,7 +879,7 @@
   ;; like + in a lambda that ignores that first argument, and takes an
   ;; arbitrary number of arguments.
   ;;------------------------------------------------------------------
-  (lambda (st . args) (put (apply proc (map scheme->elisp args))))
+  (lambda (st . args) (put-const (apply proc (map scheme->elisp args))))
   )
 
 
@@ -1080,18 +1080,18 @@
 
 (define (elisp-car lst)
   (cond
-   ((eq? lst nil) (put nil))
-   ((null? lst) (put nil))
-   ((pair? lst) (put (car lst)))
+   ((eq? lst nil) (put-const nil))
+   ((null? lst) (put-const nil))
+   ((pair? lst) (put-const (car lst)))
    (else (elisp-error "car: wrong type argument" lst))
    ))
 
 
 (define (elisp-cdr lst)
   (cond
-   ((eq? lst nil) (put nil))
-   ((null? lst) (put nil))
-   ((pair? lst) (put (cdr lst)))
+   ((eq? lst nil) (put-const nil))
+   ((null? lst) (put-const nil))
+   ((pair? lst) (put-const (cdr lst)))
    (else (elisp-error "cdr: wrong type argument" lst))
    ))
 

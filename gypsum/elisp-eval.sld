@@ -31,7 +31,8 @@
           cursor-collect-list)
     (only (gypsum match)
           matcher-monad-type?
-          try  check  put  either  many  fail  success pause
+          try  check  put  put-const  either
+          many  fail  success pause
           monad-apply  /output  /input  into  next  skip
           run-matcher/cc  get-returned-value
           =>matcher-state-output!)
