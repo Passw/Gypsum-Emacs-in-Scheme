@@ -80,7 +80,7 @@ ways.
     rather than `.venv`.
 
     ```sh
-      guix package -i -p ./.guix-profile -m ./manfiest_guile-gi.scm
+      guix package -i -p ./.guix-profile -m ./manifest_guile-gi.scm
       guix shell -p ./.guix-profile -- guile --r7rs
     ```
 
