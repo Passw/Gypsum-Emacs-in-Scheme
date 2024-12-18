@@ -55,6 +55,9 @@
    ;; Converting data between Scheme and Elisp
    scheme->elisp  elisp->scheme  pure  pure*
 
+   ;; Emacs Lisp constant symbols
+   nil t
+
    ;; The interpreter
    elisp-intern!  elisp-eval!
 

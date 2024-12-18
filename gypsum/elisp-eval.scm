@@ -608,7 +608,7 @@
           ))))
     ((expr env)
      (parameterize ((*the-environment* env))
-       (elisp-eval! expr)))))
+       (elisp->scheme (elisp-eval! expr))))))
 
 ;;====================================================================
 ;; The interpreting evaluator. Matches patterns on the program and
@@ -861,10 +861,7 @@
        (match expr
          (() (new-lambda))
          (((,args ...) ,body ...)
-          (let ((return (eval-defun-args-body 'lambda args body)))
-            (display ";; elisp-lambda:return: ")(write return)(newline)
-            return
-            ))
+          (eval-defun-args-body 'lambda args body))
          (,args (eval-error "invalid lambda" args))
          )))))
 
@@ -906,7 +903,7 @@
 
 (define (eval-defun-args-body kind arg-exprs body-expr)
   (define (non-symbol-error sym)
-    (eval-error "invalid-function, arguments declaration expect symbol" sym)
+    (eval-error "invalid function, arguments declaration expect symbol" sym)
     )
   (define (get-body func)
     (match body-expr
@@ -1033,9 +1030,9 @@
     ((,arg ,args ...) (cons arg (re-collect-args args)))
     ))
 
-(define (elisp-funcall . args) (apply eval-elisp-apply (lambda (id) id) args))
+(define (elisp-funcall . args) (eval-elisp-apply (lambda (id) id) args))
 
-(define (elisp-apply . args) (apply eval-elisp-apply re-collect-args args))
+(define (elisp-apply . args) (eval-elisp-apply re-collect-args args))
 
 (define elisp-function
   (make<macro>
@@ -1081,6 +1078,16 @@
    ))
 
 
+(define elisp-quote
+  (make<macro>
+   (lambda args
+     (match (cdr args)
+       ((,expr) expr)
+       ((,expr ,extra ...) (eval-error "wrong number of arguments" extra))
+       (,any any)
+       ))))
+
+
 (define *elisp-init-env*
   ;; A parameter containing the default Emacs Lisp evaluation
   ;; environment. This environment is an ordinary association list
@@ -1100,6 +1107,7 @@
      (cdr     . ,(pure 1 'cdr cdr))
      (list    . ,elisp-list)
 
+     (quote   . ,elisp-quote)
      (apply   . ,elisp-apply)
      (funcall . ,elisp-funcall)
      (lambda   . ,elisp-lambda)
@@ -1118,7 +1126,7 @@
 
 (define elisp-reset-init-env!
   (case-lambda
-    (() (elisp-reset-init-env (*elisp-init-env*)))
+    (() (elisp-reset-init-env! (*elisp-init-env*)))
     ((init-env) (elisp-reset-init-env! init-env (*the-environment*)))
     ((init-env env)
      (let loop ((init-env init-env) (errors '()))

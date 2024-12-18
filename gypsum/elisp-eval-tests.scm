@@ -319,7 +319,21 @@ top: glo = top
   (test-elisp-eval!
    '(let*((a 8) (b (+ 5 a))) (+ a b))))
 
+(test-eq '() (test-elisp-eval! '(setq)))
 
+(test-equal '(1 2 3) (test-elisp-eval! '(quote (1 2 3))))
+
+(test-assert
+  (let ((func (test-elisp-eval! '(lambda () nil))))
+    (and
+     (null? (view func =>lambda-args!))
+     (null? (view func =>lambda-optargs!))
+     (not (view func =>lambda-rest!))
+     (equal? '(nil) (view func =>lambda-body!)))
+    ))
+
+(test-equal '(1 + 2 = 3)
+  (test-elisp-eval! '(apply (lambda (a b) (list a '+ b '= (+ a b))) '(1 2))))
 
 ;;--------------------------------------------------------------------------------------------------
 
