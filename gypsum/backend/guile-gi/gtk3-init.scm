@@ -860,21 +860,12 @@
 
 (define (launch-gui start-repl? env) ((*launch-gui*) start-repl? env))
 
+
 ;; TODO:
 ;;
-;;  1. Make the editor-state accessible to the REPL.
+;;  1. change the *eval-string-procedure* implementation
+;;     (guile-eval-string) to make use of the interactive
+;;     REPL procedures and environment.
 ;;
-;;     The *impl/selected-frame* is parameterized within the event
-;;     handler for that frame so that reactions to those events occur
-;;     in the correct Gtk window. But REPL is running in a different
-;;     window (the terminal), it will never have access to the
-;;     selected frame. So when evaluating a form in the REPL, there
-;;     needs to be a different method for resolving the selected
-;;     frame.
-;;
-;;  2. (line 751) change the *eval-string-procedure* implementation
-;;     (guile-eval-string) to make use of the interactive REPL
-;;     procedures and environment.
-;;
-;;  3. Implement the gypsum:*eval-procedure* to also use the
+;;  2. Implement the gypsum:*eval-procedure* to also use the
 ;;     interactive REPL procedures when no environment is given.

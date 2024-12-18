@@ -55,10 +55,17 @@
   (make<sym> name (sym-value sym) (sym-function sym) (sym-plist sym)))
 
 
-(define (new-symbol name)
-  (cond
-   ((string? name) (make<sym> name #f #f #f))
-   (else (error "not a string" name))))
+(define new-symbol
+  (case-lambda
+    ((name) (new-symbol name #f #f))
+    ((name val) (new-symbol name val #f))
+    ((name val func)
+     (cond
+      ((string? name) (make<sym> name val func #f))
+      (else (error "not a string" name))))))
+
+
+(define (sym-defun name func) (new-symbol name #f func))
 
 
 (define (blank-symbol? sym)
@@ -73,6 +80,15 @@
 (define =>sym-function! (canon-sym =>sym-function*!))
 (define =>sym-plist! (canon-sym =>sym-plist*!))
 
+;;--------------------------------------------------------------------()
+;; Built-in Macro types
+
+(define-record-type <macro-type>
+  (make<macro> proc)
+  macro-type?
+  (proc macro-procedure)
+  )
+
 ;;--------------------------------------------------------------------
 ;; Lambdas of all kinds, including macros and built-ins
 
@@ -83,7 +99,7 @@
   (args     lambda-args      set!lambda-args)
   (optargs  lambda-optargs   set!lambda-optargs)
   (rest     lambda-rest      set!lambda-rest)
-  (doc      lambda-docstring set!lambda-docs)
+  (doc      lambda-docstring set!lambda-docstring)
   (decls    lambda-declares  set!lambda-declares)
   (lexenv   lambda-lexenv    set!lambda-lexenv)
   (body     lambda-body      set!lambda-body)
@@ -93,7 +109,7 @@
 (define =>lambda-args*! (record-unit-lens lambda-args set!lambda-args '=>lambda-args*!))
 (define =>lambda-optargs*! (record-unit-lens lambda-optargs set!lambda-optargs '=>lambda-optargs*!))
 (define =>lambda-rest*! (record-unit-lens lambda-rest set!lambda-rest '=>lambda-rest*!))
-(define =>lambda-docstring*! (record-unit-lens lambda-docstring set!lambda-docs '=>lambda-docstring*!))
+(define =>lambda-docstring*! (record-unit-lens lambda-docstring set!lambda-docstring '=>lambda-docstring*!))
 (define =>lambda-declares*! (record-unit-lens lambda-declares set!lambda-declares '=>lambda-declares*!))
 (define =>lambda-lexenv*! (record-unit-lens lambda-lexenv set!lambda-lexenv '=>lambda-lexenv*!))
 (define =>lambda-body*! (record-unit-lens lambda-body set!lambda-body '=>lambda-body*!))
@@ -113,13 +129,14 @@
 
 (define new-lambda
   (case-lambda
-    (() (make<lambda> #f '() '() #f #f #f #f #f))
-    ((args) (new-lambda args '() #f #f #f))
-    ((args opts) (new-lambda args opts #f #f #f))
-    ((args opts rest) (new-lambda args opts rest #f #f))
-    ((args opts rest body) (new-lambda args opts rest body #f))
-    ((args opts rest body docstr)
-     (make<lambda> (guess-function-kind body) args opts rest docstr #f #f body))
+    (() (new-lambda 'lambda))
+    ((kind) (make<lambda> kind '() '() #f #f #f #f #f))
+    ((kind args) (new-lambda kind args '() #f #f #f))
+    ((kind args opts) (new-lambda kind args opts #f #f #f))
+    ((kind args opts rest) (new-lambda kind args opts rest #f #f))
+    ((kind args opts rest body) (new-lambda kind args opts rest body #f))
+    ((kind args opts rest body docstr)
+     (make<lambda> kind args opts rest docstr #f #f body))
     ))
 
 (define (canon-lambda unit) (=>canonical unit new-lambda empty-lambda?))
@@ -132,16 +149,6 @@
 (define =>lambda-declares! (canon-lambda =>lambda-declares*!))
 (define =>lambda-lexenv! (canon-lambda =>lambda-lexenv*!))
 (define =>lambda-body! (canon-lambda =>lambda-body*!))
-
-
-(define (guess-function-kind body)
-  (cond
-   ((procedure? body) 'built-in)
-   ((command-type? body) 'command)
-   ((matcher-monad-type? body) 'macro)
-   ((pair? body) 'function)
-   (else #f)
-   ))
 
 ;;--------------------------------------------------------------------
 
@@ -169,8 +176,19 @@
 ;;--------------------------------------------------------------------
 ;; The stack
 
-(define (new-elstkfrm size)
-  (make-hash-table string=? string-hash #:weak #f size))
+(define new-elstkfrm
+  (case-lambda
+    ((size) (new-elstkfrm size '()))
+    ((size bindings)
+     (let ((elstkfrm (make-hash-table string=? string-hash #:weak #f size)))
+       (let loop ((bindings bindings))
+         (cond
+          ((null? bindings) elstkfrm)
+          (else
+           (let ((sym (car bindings)))
+             (hash-table-set! elstkfrm (ensure-string (sym-name sym)) sym)
+             (loop (cdr bindings))
+             ))))))))
 
 
 (define (stack-lookup stack name)
@@ -243,6 +261,11 @@
     ))
 
 
+(define (elstkfrm-sym-intern! elstkfrm name val)
+  (let ((name (ensure-string name)))
+    (hash-table-set! elstkfrm name (new-symbol name val))))
+
+
 (define (elstkfrm-zip-args syms opts rest args)
   ;; Construct an association list mapping symbols to
   ;; arguments. Returns three values: (1) the association list, (2)
@@ -304,167 +327,166 @@
      (failed
       (lens-set (list func args) failed =>elisp-eval-error-irritants))
      (else
-      (list (alist->hash-table assocs))))
+      (alist->hash-table assocs)))
     ))
+
+;;;;--------------------------------------------------------------------
+;;
+;;(define-record-type <elisp-env-eval-func-stack-elem-type>
+;;  (make<elisp-eval-func-stack-elem> func args locals)
+;;  elisp-eval-func-stack-elem-type?
+;;  (func   env-eval-stack-function   set!env-eval-stack-function)
+;;    ;; ^ the function to be evaluated
+;;  (args   env-eval-stack-func-args  set!env-eval-stack-func-args)
+;;    ;; ^ the arguments to be passed
+;;  (locals env-eval-stack-locals    set!env-eval-stack-locals)
+;;    ;; ^ the local variables from the previous function call
+;;  )
+;;
+;;(define =>env-eval-stack-function*!
+;;  (record-unit-lens
+;;   env-eval-stack-function
+;;   set!env-eval-stack-function
+;;   '=>env-eval-stack-function))
+;;
+;;(define =>env-eval-stack-func-args*!
+;;  (record-unit-lens
+;;   env-eval-stack-func-args
+;;   set!env-eval-stack-func-args
+;;   '=>env-eval-stack-func-args))
+;;
+;;(define =>env-eval-stack-locals*!
+;;  (record-unit-lens
+;;   env-eval-stack-locals
+;;   set!env-eval-stack-locals
+;;   '=>env-eval-stack-locals*!))
 
 ;;--------------------------------------------------------------------
 
 (define-record-type <elisp-environment-type>
-  (make<elisp-environment> cur env dyn lex mode)
+  ;; This is the environment object used for the Emacs Lisp evaluator.
+  ;; Use `NEW-ENVIRONMENT` to construct an object of this type.
+  ;;------------------------------------------------------------------
+  (make<elisp-environment> env dyn lex mode halt)
   elisp-environment-type?
-  (cur  elisp-env-progn     set!elisp-env-progn)    ;;cursor inspecting current form
-  (env  elisp-env-obarray   set!elisp-env-obarray)  ;;environment (obarray)
-  (dyn  elisp-env-dynstack  set!elisp-env-dynstack) ;;dynamically bound variable stack frames
-  (lex  elisp-env-lexstack  set!elisp-env-lexstack) ;;lexically bound variable stack frames
-  (mode elisp-env-lxmode    set!elisp-env-lxmode)   ;;lexical binding mode
+  (env  env-obarray   set!env-obarray)  ;;environment (obarray)
+  (dyn  env-dynstack  set!env-dynstack) ;;dynamically bound variable stack frames
+  (lex  env-lexstack  set!env-lexstack) ;;lexically bound variable stack frames
+  (mode env-lxmode    set!env-lxmode)   ;;lexical binding mode
+  (halt env-fail-cc   set!env-fail-cc)  ;;continuation to `ELISP-EVAL!`
   )
 
+(define =>env-dynstack*!
+  (record-unit-lens env-dynstack set!env-dynstack '=>env-dynstack*!))
 
-(define new-env
-  (case-lambda
-    (() (new-env #f))
-    ((size)
-     (let ((size (if (integer? size) size *default-obarray-size*)))
-       (make-hash-table string=? string-hash #:weak #f size)))))
+(define =>env-lexstack*!
+  (record-unit-lens env-lexstack set!env-lexstack '=>env-lexstack*!))
 
+(define =>env-obarray*!
+  (record-unit-lens env-obarray set!env-obarray '=>env-obarray*!))
 
-(define =>elisp-env-progn*!
-  (record-unit-lens elisp-env-progn set!elisp-env-progn '=>elisp-env-progn*!))
+(define (=>env-obarray-key! name)
+  (lens =>env-obarray*!
+        (=>canonical (=>hash-key*! name) new-empty-obarray hash-table-empty?)))
 
-(define =>elisp-env-dynstack*!
-  (record-unit-lens elisp-env-dynstack set!elisp-env-dynstack '=>elisp-env-dynstack*!))
+(define =>env-lexical-mode?!
+  (record-unit-lens env-lxmode set!env-lxmode '=>env-lexical-mode?!))
 
-(define =>elisp-env-lexstack*!
-  (record-unit-lens elisp-env-lexstack set!elisp-env-lexstack '=>elisp-env-lexstack*!))
+(define =>env-fail-cc*!
+  (record-unit-lens env-fail-cc set!env-fail-cc '=>env-fail-cc*!))
 
-(define =>elisp-env-obarray*!
-  (record-unit-lens elisp-env-obarray set!elisp-env-obarray '=>elisp-env-obarray*!))
-
-(define (=>elisp-env-obarray-key! name)
-  (lens =>elisp-env-obarray*!
-        (=>canonical (=>hash-key*! name) new-env hash-table-empty?)))
-
-(define =>elisp-env-lexical-mode?!
-  (record-unit-lens elisp-env-lxmode set!elisp-env-lxmode '=>elisp-env-lexical-mode?!))
-
-
-(define (=>elisp-env-stack-lens*! st)
+(define =>env-stack-lens*!
   ;; Select a lens for the lexical or dynamic variable stack depending
   ;; on the current lexical binding mode.
-  (if (elisp-env-lxmode st) =>elisp-env-lexstack*! =>elisp-env-dynstack*!))
+  (let ((getter
+         (lambda (st)
+           (if (env-lxmode st)
+               (view st =>env-lexstack*!)
+               (view st =>env-dynstack*!))))
+        (updater
+         (lambda (updater st)
+           (if (env-lxmode st)
+               (update&view updater st =>env-lexstack*!)
+               (update&view updater st =>env-dynstack*!))))
+        )
+    (unit-lens
+     getter
+     (default-unit-lens-setter updater)
+     updater
+     '=>env-stack-lens*!)))
 
 
-(define (elisp-env-push-empty-elstkfrm! st size)
+(define (env-pop-elstkfrm! st)
+  (update
+   (lambda (stack) (if (null? stack) '() (cdr stack)))
+   st =>env-stack-lens*!))
+
+
+(define (env-push-new-elstkfrm! st size bindings)
   ;; Inspect the lexical binding mode and push a new stack frame on
   ;; the appropriate stack (lexical or dynamic stack). Return the
   ;; empty stack frame that was pushed so it can be updated by the
   ;; calling procedure.
-  (let ((elstkfrm (new-elstkfrm size)))
+  (let ((elstkfrm (new-elstkfrm size bindings)))
     (update
-     (lambda (stack) (cons elstkfrm stack)) st
-     (=>elisp-env-stack-lens*! st))
+     (lambda (stack) (cons elstkfrm stack))
+     st =>env-stack-lens*!)
     elstkfrm))
 
 
-(define (elisp-env-pop-elstkfrm! st)
-  (update
-   (lambda (stack) (if (null? stack) '() (cdr stack))) st
-   (=>elisp-env-stack-lens*! st)))
-
-
-(define (elisp-sym-lookup st name)
-  (or (view st =>elisp-env-lexstack*! (=>stack! name #f))
-      (view st =>elisp-env-dynstack*! (=>stack! name #f))
-      (view st (=>elisp-env-obarray-key! name))
+(define (env-sym-lookup st name)
+  (or (view st =>env-lexstack*! (=>stack! name #f))
+      (view st =>env-dynstack*! (=>stack! name #f))
+      (view st (=>env-obarray-key! name))
       ))
 
 
-(define (elisp-env-dynstack-update updater st name newsym)
+(define (env-dynstack-update updater st name newsym)
   ;; Part of the Elisp "SETQ" semantics. This procedure tries to
   ;; update just the dynamic variable stack. If there is no variable
   ;; bound to `NAME` then apply `UPDATER`, `ST`, and `NAME` to the
   ;; `NEWSYM` procedure. `NEWSYM` must return two values, the updated
   ;; `ST` and an arbitrary return value for the `UPDATE&VIEW` lens.
   (update&view updater st
-   =>elisp-env-dynstack*!
-   (=>stack! name (lambda () (newsym updater st name)))))
+    =>env-dynstack*!
+    (=>stack! name (lambda () (newsym updater st name)))))
 
 
-(define (elisp-env-stack-update updater st name newsym)
+(define (env-stack-update updater st name newsym)
   ;; Part of the Elisp "SETQ" semantics. This procedure updates the
   ;; lexical variable stack, or if in dynamic binding mode, updating
   ;; the dynamic variable stack. If there is no variable bound to
   ;; `NAME` then apply `UPDATER`, `ST`, and `NAME` to the `NEWSYM`
   ;; procedure. `NEWSYM` must return two values, the updated `ST` and
   ;; an arbitrary return value for the `UPDATE&VIEW` lens.
-  (if (elisp-env-lxmode st)
+  (if (env-lxmode st)
       (update&view
-       updater st =>elisp-env-lexstack*!
-       (=>stack! name
-        (lambda () (elisp-env-dynstack-update updater st name newsym))))
-      (elisp-env-dynstack-update updater name st newsym)))
+       updater st =>env-lexstack*!
+       (=>stack! name (lambda () (env-dynstack-update updater st name newsym))))
+      (env-dynstack-update updater st name newsym)))
 
 
-(define (elisp-env-intern! updater st name)
+(define (env-intern! updater st name)
   ;; Part of the Elisp "SETQ" semantics. Interns a new symbol in the
   ;; obarray, replacing it if it already exists (although this
   ;; procedure is only called by procedures that have already checked
   ;; if the symbol exists and is called when it does not
   ;; exist). Before interning the new symbol, the symbol is applied to
   ;; the `UPDATER` procedure passed as an argument to this procedure.
-  (let-values (((sym return) (updater (new-symbol name))))
+  (let-values
+      (((sym return) (updater (new-symbol name))))
     (values
-     (lens-set sym st (=>elisp-env-obarray-key! name))
+     (lens-set sym st (=>env-obarray-key! name))
      return)))
 
 
-(define (elisp-env-setq-bind! updater st name)
+(define (env-setq-bind! st updater name)
   ;; This procedure implements the `SETQ` semantics. It tries to
   ;; update an existing symbol bound to `NAME` anywhere in the lexical
   ;; stack, the dynamic stack, or the global "obarray", but if no such
   ;; `NAME` is bound anywhere, a new symbol is initerned in the global
   ;; obarray.
-  (elisp-env-stack-update updater st name elisp-env-intern!))
-
-
-(define (=>elisp-setq-bind! name)
-  ;; This lens views or updates the `<ELISP-ENVIRONMENT-TYPE>`
-  ;; object. A view finds the given `NAME` anywhere in the stack and
-  ;; returns as `<SYM-TYPE>` object associated with the `NAME` it if
-  ;; it exists. An update will update the `<SYM-TYPE>` object
-  ;; associated with `NAME` anywhere in the stack if it eixsts. If a
-  ;; `NAME` is not bound anywhere, this canonical lens will construct
-  ;; a new `<SYM-TYPE>` object and apply it to `UPDATER` (which
-  ;; returns an updated `<SYM-TYPE>` object and an arbitrary return
-  ;; value), then bind the updated `<SYM-TYPE?>` object returned by
-  ;; `UPDATER` to the `NAME` at the top-most layer of the stack. This
-  ;; lens inspects the value of `=>ELISP-ENV-LEXICAL-MODE?!` and
-  ;; determines whether to bind `NAME` in the lexical binding stack or
-  ;; the dynamic binding stack.
-  ;;------------------------------------------------------------------
-  (let ((getter (lambda (st) (elisp-sym-lookup st name)))
-        (updater (lambda (updater st) (elisp-env-setq-bind! updater st name)))
-        )
-    (unit-lens
-     getter (default-unit-lens-setter updater) updater
-     `(=>elisp-setq-bind! ,name))
-    ))
-
-
-(define %new-elisp-env
-  (case-lambda
-    (() (%new-elisp-env *default-obarray-size*))
-    ((env) (%new-elisp-env env #t))
-    ((env lexical-scoping)
-     (define (make env) (make<elisp-environment> #f env '() '() lexical-scoping))
-     (cond
-      ((not (boolean? lexical-scoping)) (error "not a boolean" lexical-scoping))
-      ((not env) (make (new-env *default-obarray-size*)))
-      ((integer? env) (make (new-env env)))
-      ((hash-table? env) (make env))
-      (else (error "second argument not an <hash-table>" env))
-      ))
-    ))
+  (env-stack-update updater st name env-intern!))
 
 
 (define (ensure-string name)
@@ -479,6 +501,19 @@
   (hash-table-ref/default hash (ensure-string name) #f))
 
 
+(define (env-resolve-function st head)
+  (let ((head
+         (cond
+          ((sym-type? head) head)
+          ((symbol? head) (env-sym-lookup st (symbol->string head)))
+          (else head)))
+        )
+    (cond
+     ((sym-type? head) (sym-function head))
+     (else head))
+    ))
+
+
 (define *default-obarray-size* 32749)
   ;; ^ At the time of this writing, the size of the `OBARRAY` object
   ;; in my Emacs was 15121. I am choosing a prime-number size here
@@ -488,101 +523,68 @@
   ;; symbols.
 
 
-(define (env-intern-soft st name)
-  (let ((name (ensure-string name)))
-    (view st (=>elisp-env-obarray-key! name))))
+(define new-empty-obarray
+  (case-lambda
+    (() (new-empty-obarray *default-obarray-size*))
+    ((size) (make-hash-table string=? string-hash #:weak #f size))
+    )
+  )
 
 
-(define (env-intern! st . assocs)
-  ;; This procedure is mostly used for directly updating an Emacs Lisp
-  ;; environment from within a Scheme procedure. It takes an arbitrary
-  ;; number of pair arguments (cons cells) associating a symbol or
-  ;; string to an arbitrary value. This procedure then creates a
-  ;; symbol for each value and stores the value into the symbol. The
-  ;; value will be stored into the `=>SYM-VALUE!` field of a
-  ;; `<SYM-TYPE>` object unless it is a `<LAMBDA-TYPE>`, a Scheme
+(define new-empty-env
+  (case-lambda
+    (() (new-empty-env *default-obarray-size*))
+    ((size)
+     (make<elisp-environment>
+      (new-empty-obarray size)
+      '() '() #t #f))))
+
+
+;;====================================================================
+;; The publicly exported evaluator procedures.
+
+(define *the-environment*
+  (make-parameter (new-empty-env *default-obarray-size*)))
+
+
+(define (elisp-intern! . assocs)
+  ;; This procedure is exported, so mostly used by users of this
+  ;; library to directly update an Emacs Lisp environment from within
+  ;; a Scheme procedure without having to use `ELISP-EVAL!`. It takes
+  ;; an arbitrary number of pair arguments (cons cells) associating a
+  ;; symbol or string to an arbitrary value. This procedure then
+  ;; creates a symbol for each value and stores the value into the
+  ;; symbol. The value will be stored into the `=>SYM-VALUE!` field of
+  ;; a `<SYM-TYPE>` object unless it is a `<LAMBDA-TYPE>`, a Scheme
   ;; procedure, or a `<MATCHER-MONAD-TYPE>`, in which case it is
   ;; stored into the `=>SYM-FUNCTION!`
   ;;------------------------------------------------------------------
-  (for-each
-   (lambda (pair)
-     (let*-values
-         (((name) (ensure-string (car pair)))
-          ((st sym)
-           (update&view
-            (lambda (sym)
-              (cond
-               (sym (values sym sym))
-               (else (let ((sym (new-symbol name))) (values sym sym)))
-               ))
-            st (=>elisp-env-obarray-key! name)))
-          ((val) (cdr pair))
-          )
-       (cond
-        ((or (lambda-type? val)
-             (procedure? val)
-             (matcher-monad-type? val))
-         (set!sym-function sym val))
-        (else (set!sym-value sym val)))
-       ))
-   assocs)
-  st)
+  (let ((st (*the-environment*)))
+    (for-each
+     (lambda (pair)
+       (let*-values
+           (((name) (ensure-string (car pair)))
+            ((st sym)
+             (update&view
+              (lambda (sym)
+                (cond
+                 (sym (values sym sym))
+                 (else (let ((sym (new-symbol name))) (values sym sym)))
+                 ))
+              st (=>env-obarray-key! name)))
+            ((val) (cdr pair))
+            )
+         (cond
+          ((or (lambda-type? val)
+               (procedure? val)
+               (macro-type? val))
+           (set!sym-function sym val))
+          (else (set!sym-value sym val)))
+         ))
+     assocs)))
 
 
-(define (=>env-intern! name)
-  ;; This procedure is mostly used for directly updating an Emacs Lisp
-  ;; environment from within a Scheme procedure. A unit lens that
-  ;; focuses on the given symbol or string in the environment
-  ;; obarray. This value always points to an existing symbol, a symbol
-  ;; is created if it does not exist, so this lens is canonical.
-  ;;------------------------------------------------------------------
-  (let ((getter (lambda (st) (env-intern-soft st name)))
-        (setter
-         (lambda (st sym)
-           (let*((name (ensure-string name))
-                 (sym
-                  (if (equal? name (sym-name sym))
-                      sym ;; copy the symbol object if the name changed
-                      (lens-set name sym =>sym-name)))
-                 (st (lens-set sym st =>elisp-env-obarray*! (=>hash-key! name))))
-             st)))
-        )
-    (unit-lens
-     getter setter
-     (default-unit-lens-updater getter setter)
-     `(=>env-intern! ,name))
-  ))
-
-
-(define new-empty-elisp-env
-  ;; Construct an empty Emacs Lisp evaluation environment that has no
-  ;; symbols at all except the ones you optionally pass as an argument
-  ;; to this constructor. The one argument you may pass must bt an
-  ;; associative list or a hash table. Symbol objects are constructed
-  ;; and interned for each `CAR` in the assocation list. If the `CDR`
-  ;; of a pair satisfies the predicate `LAMBDA-TYPE?` it is
-  ;; automatically interned in the `SYM-FUNCTION` field of the symbol
-  ;; object, all other values are interned in the `SYM-VALUE` field of
-  ;; the symbol object.
-  ;;------------------------------------------------------------------
-  (case-lambda
-    (() (new-empty-elisp-env #f))
-    ((env)
-     (cond
-      ((or (not env) (hash-table? env)) (%new-elisp-env env))
-      ((null? env) (new-empty-elisp-env #f))
-      ((pair? env) (apply env-intern! (%new-elisp-env) env))
-      (else (error "not a mapping from symbols to values" env))
-      ))
-    ))
-
-
-(define (new-elisp-env . assocs)
-  ;; Constrruct a new Emacs Lisp evaluation environment.
-  (apply env-intern! (new-empty-elisp-env) (*elisp-init-env*)))
-
-
-(define (elisp-eval! expr env)
+(define elisp-eval!
   ;; Evaluate an Emacs Lisp expression that has already been parsed
   ;; from a string into a list or vector data structure. The result of
   ;; evaluation is two values:
@@ -595,267 +597,370 @@
   ;;  2. The exception that occurred, or `#F` if there was no
   ;;     exception.
   ;;------------------------------------------------------------------
-  (run-matcher/cc env (elisp-eval-step-into-form expr)))
+  (case-lambda
+    ((expr)
+     (call/cc
+      (lambda (halt)
+        (lens-set halt (*the-environment*) =>env-fail-cc*!)
+        (let ((return (eval-form expr)))
+          (lens-set #f (*the-environment*) =>env-fail-cc*!)
+          return
+          ))))
+    ((expr env)
+     (parameterize ((*the-environment* env))
+       (elisp-eval! expr)))))
 
-
-(define (elisp-eval->scheme env)
-  ;; Return the value taken from an Emacs Lisp environment that was
-  ;; the last value of the last expression returned by evaluation of
-  ;; an Emacs Lisp statement. Apply this procedure to the first of the
-  ;; two results returned by `ELISP-EVAL!`.
-  ;;------------------------------------------------------------------
-  (view env =>matcher-state-output!)
-  )
-
-
-;;--------------------------------------------------------------------
+;;====================================================================
 ;; The interpreting evaluator. Matches patterns on the program and
 ;; immediately executes each form or symbol.
 
-
-(define (expr-is . functors)
-  ;; Compose a sequence functors against the current expression of the
-  ;; interpreter state, assuming the current expression is a
-  ;; <CURSOR-TYPE>, and assuming there is an element.
-  (apply endo-view elisp-env-progn cursor-ref functors))
-
-
-(define (has-next-form? st)
-  (unless (elisp-environment-type? st)
-    (error "expecting environment" st)
-    )
-  (let ((cur (elisp-env-progn st)))
-    (and (cursor-type? cur)
-         (not (cursor-end? cur)))
-    ))
+(define (eval-push-new-elstkfrm! size bindings)
+  ;; Inspect the lexical binding mode and push a new stack frame on
+  ;; the appropriate stack (lexical or dynamic stack). Return the
+  ;; empty stack frame that was pushed so it can be updated by the
+  ;; calling procedure.
+  (env-push-new-elstkfrm! (*the-environment*) size bindings))
 
 
-(define step-pc
-  ;; Step the program counter
-  (try
-   (check elisp-env-progn cursor-end? not)
-   (next (lambda (st) (cursor-step! (elisp-env-progn st)) st))
-   ))
+(define (eval-pop-elstkfrm!)
+  (env-pop-elstkfrm! (*the-environment*)))
 
 
-(define end-of-progn (check elisp-env-progn cursor-end?))
+(define (eval-sym-lookup sym)
+  ;; This procedure is exported, so mostly used by users of this
+  ;; library to lookup an Emacs Lisp environment symbol from within a
+  ;; Scheme procedure without having to use `ELISP-EVAL!`. This
+  ;; procedure will return an Emacs Lisp symbol object of type
+  ;; `<SYM-TYPE>` or `#f` if nothing is bound to the symbol.
+  (env-sym-lookup (*the-environment*) sym))
 
 
-(define (elisp-error message . irritants)
-  (pause (make<elisp-eval-error> message irritants)))
+(define (eval-raise err-obj)
+  (let ((halt (view (*the-environment*) =>env-fail-cc*!)))
+    (halt err-obj)))
 
 
-(define (elisp-get-form-args st)
-  (cursor-collect-list (elisp-env-progn st)))
+(define (eval-error message . irritants)
+  (eval-raise (make<elisp-eval-error> message irritants)))
 
 
-(define (elisp-eval-progn body) ;; evals the body of a `PROGN`, `LET`, or `LAMBDA`
-  (into (lambda _ (new-cursor body)) (many elisp-eval-progn-step)))
+(define (eval-apply-proc func arg-exprs)
+  ;; This is how built-in Scheme procedure are applied from within Emacs Lisp.
+  (let loop ((arg-exprs arg-exprs) (arg-vals '()))
+    (cond
+     ((null? arg-exprs) (apply func (reverse arg-vals)))
+     ((pair? arg-exprs)
+      (let ((result (eval-form (car arg-exprs))))
+        (loop (cdr arg-exprs) (cons result arg-vals))
+        )))))
 
 
-(define (elisp-eval-step-into-list stmt monad)
-  (/input
-   (lambda (st)
-     (let ((old-cursor (elisp-env-progn st)))
-       (set!elisp-env-progn st (new-cursor stmt))
-       (try
-        monad
-        (next
-         (lambda (st)
-           (display "elisp-eval-step-into-form: success\n")
-           (set!elisp-env-progn st old-cursor)
-           st)))
-       ))))
+(define (eval-apply-lambda func arg-exprs)
+  ;; This is how Emacs Lisp-defined lambdas and functions are applied
+  ;; from within Emacs Lisp.
+  (eval-apply-proc
+   (lambda args
+     (let*((elstkfrm (elstkfrm-from-args func args))
+           (st (*the-environment*))
+           (old-stack (env-lexstack st))
+           (st (lens-set (list elstkfrm) st =>env-lexstack*!))
+           (return (eval-progn-body (lambda-body func))) ;; apply
+           (return ;; macro expand (if its a macro)
+            (cond
+             ((eq? 'macro (lambda-kind func)) (eval-form return))
+             (else return)
+             )))
+       (lens-set old-stack st =>env-lexstack*!)
+       return
+       ))
+   arg-exprs))
 
 
-(define (elisp-eval-step-into-form stmt) ;; the top-level
-  (display "elisp-eval-step-into-form ")(write stmt)(newline)
-  (cond
-   ((symbol? stmt)
-    (/input
-     (lambda (st)
-       (let ((sym (env-intern-soft st stmt)))
-         (cond
-          ((not sym) (elisp-error "void variable" stmt))
-          ((sym-type? sym) (put-const (sym-value sym)))
-          ((elisp-quote-scheme-type? sym) (put-const (elisp-unquote-scheme sym)))
-          (else (put-const sym))))
-       )))
-   ((or (pair? stmt) ;; cursors can be constructed from one of these types
-        (vector? stmt)
-        (mutable-vector-type? stmt))
-    (elisp-eval-step-into-list stmt elisp-eval-form))
-   ((or (number? stmt)
-        (string? stmt)
-        (boolean? stmt)
-        (char? stmt)) ;; simply return the value as it is
-    (put-const stmt))
-   ((elisp-quote-scheme-type? stmt)
-    (put-const (elisp-unquote-scheme stmt)))
-   (else (elisp-error "no semantics for statement" stmt))
-   ))
-
-
-(define (elisp-push-stack-frame st func args)
-  ;; Bind argument values to a function's argument variables, push a
-  ;; stack frame and evaluate a function body. The argument values
-  ;; must already have been evaluated before applying this monad.
-  (let*((elstkfrm (elstkfrm-from-args func args))
-        (=>stack-lens
-         (if (elisp-env-lxmode st)
-             =>elisp-env-lexstack*!
-             =>elisp-env-dynstack*!))
-        (pop-stack
-         (lambda ()
-           (update cdr st =>stack-lens)
-           skip))
+(define (eval-bracketed-form head arg-exprs)
+  ;; This is the actual `APPLY` procedure for Emacs Lisp.
+  (let ((func (env-resolve-function (*the-environment*) head))
         )
     (cond
-     ((elisp-eval-error-type? elstkfrm) (pause elstkfrm))
-     (else
-      (update (lambda (stack) (cons elstkfrm stack)) st =>stack-lens)
-      (either
-       (try (elisp-eval-progn (lambda-body func)) (pop-stack))
-       (pop-stack)))
+     ((macro-type?   func) (apply (macro-procedure func) head arg-exprs))
+     ((lambda-type?  func) (eval-apply-lambda func arg-exprs))
+     ((command-type? func) (eval-apply-proc (command-procedure func) arg-exprs))
+     ((procedure?    func) (eval-apply-proc func arg-exprs))
+     (else (eval-error "invalid function" head))
      )))
 
 
-(define elisp-re-eval-after-macro
-  ;; After evaluating macro expansion, the macro expander should have
-  ;; placed a new form into the pattern matcher output. Retrieve this
-  ;; output and feed it back into the input and evaluate it.
-  (/output elisp-eval-step-into-form))
-
-
-(define (elisp-apply-elisp-macro func)
-  ;; Needs to push a stack frame, bind elements in the current form to
-  ;; the symbols in the macro arguments, and evaluate the body. It
-  ;; takes no arguments because the arguments are taken from the
-  ;; current form.
-  (display "elisp-apply-elisp-macro ")(write func)(newline);;DEBUG
-  (/input
-   (lambda (st)
-     (try
-      (elisp-push-stack-frame st func (elisp-get-form-args st))
-      elisp-re-eval-after-macro))))
-
-
-(define (elisp-apply-macro func)
-  ;; A built-in macro must be a monad, and in the evaluator it is
-  ;; applied immediately. It may return any value at all.
-  (display "elisp-apply built-in macro ")(write func)(newline);;DEBUG
-  func)
-
-
-(define (elisp-apply-elisp-function func)
-  ;; This monad is evaluated when we are sure the `FUNC` argument is
-  ;; an ordinary function defined in Emacs Lisp, and not a built-in
-  ;; function.
-  (display "elisp-apply-elisp-function ")(write func)(newline);;DEBUG
-  (/input
-   (lambda (st)
-     (let ((args (elisp-get-form-args st)))
-       (display "elisp-apply-elisp-function ")(write args)(newline);;DEBUG
-       (apply
-        monad-apply
-        (lambda args (elisp-push-stack-frame st func args))
-        (map elisp-eval-step-into-form args))))))
-
-
-(define (elisp-apply-built-in func)
-  ;; This monad checks if `FUNC` satisfies the `PROCEDURE?` or
-  ;; `COMMAND-TYPE?` predicates. If so, it collects all arguments in
-  ;; the current form, evaluates each one, then applies the result to
-  ;; the given `FUNC` argument.
-  (/input
-   (lambda (st)
-     (let ((args (elisp-get-form-args st)))
-       (apply
-        monad-apply
-        (lambda args (apply func st args))
-        (map elisp-eval-step-into-form args))))))
-
-
-(define (elisp-apply depth sym func)
-  ;; Determines if the `FUNC` argument is a symbol or lambda and tries
-  ;; to somehow resolve it to a callable function. Pass the `SYM` in
-  ;; case an error needs to be reported.
-  (cond
-   ((procedure? func) (elisp-apply-built-in func))
-   ((command-type? func) (elisp-apply-built-in (command-procedure func)))
-   ((matcher-monad-type? func) func) ;; <- a built-in macro is evaluated immediately
-   ((lambda-type? func)
-    (let ((kind (lambda-kind func)))
-      (cond
-       ((eq? kind 'macro) (elisp-apply-elisp-macro func))
-       ((eq? kind 'function) (elisp-apply-elisp-function func))
-       (else (elisp-error "unknown lambda type" kind)))))
-   ((and (< depth 1)
-         (or (pair? func)
-             (vector? func)
-             (mutable-vector-type? func)))
-    (elisp-eval-step-into-form func)
-    (/output (lambda (func) (elisp-apply (+ 1 depth) sym func))))
-   (else (elisp-error "invalid function" sym))
-   ))
-
-
-(define (/current-expr on-expr)
-  ;; This pattern matcher monad is "with current expression," which
-  ;; fails if the current interpreter expression not is a
-  ;; `<CURSOR-TYPE>` and or if `CURSOR-END?` is `#T`. Otherwise
-  ;; applies the given function `ON-EXPR` is applied to the expression
-  ;; under the cursor. The `ON-EXPR` is applied two arguments: (1) the
-  ;; current matcher state, and (2) the current expression under the
-  ;; cursor.
-  (try
-   (check has-next-form?)
-   (/input
-    (lambda (st)
-      (let ((sym (cursor-ref (elisp-env-progn st))))
-        (cursor-step! (elisp-env-progn st))
-        (display "/current-expr: ")(write sym)(newline);;DEBUG
-        (on-expr st sym))
+(define (eval-form expr)
+  ;; This is where evaluation begins. This is the actual `EVAL`
+  ;; procedure for Emacs Lisp.
+  (match expr
+    (() nil)
+    ((,head ,args ...) (eval-bracketed-form head args))
+    (,literal
+     (cond
+      ((symbol? literal)
+       (let ((return (eval-sym-lookup (symbol->string literal))))
+         (cond
+          ((not return) (eval-error "void variable" literal))
+          ((sym-type? return) (sym-value return))
+          (else return))))
+      ((elisp-quote-scheme-type? literal) (elisp-unquote-scheme literal))
+      (else literal)
       ))))
 
 
-(define elisp-eval-form
-  ;; Resolve a function from the head of the list, then call `ELISP-APPLY-FUNCTION`.
-  (/current-expr
-   (lambda (st sym)
-     ;;----------------------------------------------------------------
-     ;; First evaluate the head of the list, it must be either a
-     ;; symbol or a lambda, otherwise this is an invalid form.
-     (cond
-      ((symbol? sym)
-       (let*((func (env-intern-soft st (ensure-string sym))))
-         (cond
-          ((not func) (elisp-error "void variable" sym))
-          ((sym-type? func) (elisp-apply 0 sym (sym-function func)))
-          (else (elisp-apply 0 sym func))
-          )))
-      ((or (pair? sym) (vector? sym) (mutable-vector-type? sym))
-       ;; Evaluate this form, it should produce a lambda.
-       (elisp-eval-step-into-form sym)
-       ;; Now apply the rest of this form to the lambda.
-       (/output
-        (lambda (out)
-          (elisp-apply 0 sym out)
-          )))
-      (else (elisp-error "symbol at head of form is not a function or macro" sym))
+(define (eval-args-list arg-exprs)
+  (let loop ((arg-exprs arg-exprs))
+    (match arg-exprs
+      (() '())
+      ((,expr ,more ...)
+       (let ((result (eval-form expr)))
+         (if (elisp-eval-error-type? result) result
+             (cons result (loop more)))
+         )))))
+
+
+(define (eval-progn-body exprs)
+  (let loop ((exprs exprs))
+    (match exprs
+      (() nil)
+      ((,final) (eval-form final))
+      ((,head ,more ...) (eval-form head) (loop more))
+      )))
+
+;;--------------------------------------------------------------------
+;; Built-in macros
+;;
+;; Note that these macros always begin with a (next) statement. This
+;; is because the macro evaluator for built-in macros does not skip
+;; over the head of the form before evaluating the macro. This makes
+;; built-in macro bahvior a bit more Scheme-like.
+
+
+(define elisp-progn
+  (make<macro>
+   (lambda expr
+     (eval-progn-body (cdr expr)))))
+
+
+(define elisp-setq
+  (make<macro>
+   (lambda  args
+     (let ((bind!
+            (lambda (sym val)
+              (cond
+               ((symbol? sym)
+                (env-setq-bind! ;; lookup the symbol object for `SYM`, or intern a new one.
+                 (*the-environment*)
+                 (lambda (sym-obj)
+                   (values
+                    (lens-set val sym-obj =>sym-value*!) ;; Update the interned symbol,
+                    sym-obj))
+                 (symbol->string sym)))
+               (else
+                (eval-error "wrong type argument, expecting symbol" sym)
+                ))))
+           (argc (length args))
+           )
+       (cond
+        ((even? argc) ;; args includes "setq" symbol, argc should be odd
+         (eval-error "wrong number of arguments, setq" (- argc 1))
+         )
+        (else
+         (let loop ((args (cdr args)) (argc 0) (last-bound nil))
+           (match args
+             (() last-bound)
+             ((,sym ,expr ,more ...)
+              (let ((val (eval-form expr)))
+                (cond
+                 ((elisp-eval-error-type? val) val)
+                 (else
+                  (bind! sym val)
+                  (loop more (+ 2 argc) val)
+                  ))))))))))))
+
+
+(define elisp-let
+  (make<macro>
+   (lambda expr
+     (let ((st (*the-environment*)))
+       (match (cdr expr)
+         (() nil)
+         (((,bindings ...) ,progn-body ...)
+          (let loop ((unbound bindings) (bound '()) (size 0))
+            (match unbound
+              (()
+               (env-push-new-elstkfrm! st size (reverse bound))
+               (let ((result (eval-progn-body progn-body)))
+                 (env-pop-elstkfrm! st)
+                 result))
+              (((,sym) ,more ...)
+               (loop more (cons (new-symbol sym nil) bound) (+ 1 size))
+               )
+              (((,sym ,expr) ,more ...)
+               (let ((result (eval-form expr)))
+                 (loop more
+                       (cons (new-symbol (ensure-string sym) result) bound)
+                       (+ 1 size))
+                 ))
+              (((,sym ,expr ,extra ...) ,more ...)
+               (eval-error "bindings can have only one value form" (car unbound))
+               )
+              ((,sym ,more ...)
+               (loop more (cons (new-symbol sym nil) bound) (+ 1 size))
+               )
+              (,otherwise
+               (eval-error "wrong type argument, expecting list" otherwise)
+               ))))
+         (,otherwise
+          (eval-error "wrong type argument, expecting list" otherwise)
+          ))))))
+
+
+(define elisp-let*
+  (make<macro>
+   (lambda expr
+     (let ((st (*the-environment*)))
+       (match (cdr expr)
+         (() nil)
+         (((,bindings ...) ,progn-body ...)
+          (let ((elstkfrm (env-push-new-elstkfrm! st (length bindings) '())))
+            (let loop ((unbound bindings))
+              (match unbound
+                (()
+                 (let ((result (eval-progn-body progn-body)))
+                   (env-pop-elstkfrm! st)
+                   result))
+                (((,sym) ,more ...)
+                 (elstkfrm-sym-intern! elstkfrm sym nil)
+                 (loop more)
+                 )
+                (((,sym ,expr) ,more ...)
+                 (let ((result (eval-form expr)))
+                   (elstkfrm-sym-intern! elstkfrm sym result)
+                   (loop more)
+                   ))
+                (((,sym ,expr ,extra ...) ,more ...)
+                 (eval-error "bindings can have only one value form" (car unbound))
+                 )
+                ((,sym ,more ...)
+                 (elstkfrm-sym-intern! elstkfrm sym nil)
+                 (loop more)
+                 )
+                (,otherwise
+                 (eval-error "wrong type argument, expecting list" otherwise)
+                 )))))
+         (,otherwise
+          (eval-error "wrong type argument, expecting list" otherwise)
+          ))))))
+
+
+(define elisp-lambda
+  (make<macro>
+   (lambda expr
+     (let ((expr (cdr expr)))
+       (match expr
+         (() (new-lambda))
+         (((,args ...) ,body ...)
+          (let ((return (eval-defun-args-body 'lambda args body)))
+            (display ";; elisp-lambda:return: ")(write return)(newline)
+            return
+            ))
+         (,args (eval-error "invalid lambda" args))
+         )))))
+
+
+(define elisp-defun-defmacro
+  (make<macro>
+   (lambda expr
+     (let*((expr (cdr expr))
+           (def  (car expr))
+           )
+       (match expr
+         (() (eval-error "wrong number of arguments" '()))
+         ((,sym) (eval-error "wrong number of arguments" sym))
+         ((,sym (,args ...) ,body ...)
+          (cond
+           ((symbol? sym)
+            (let*((func   (eval-defun-args-body def args body))
+                  (name   (symbol->string sym))
+                  (=>name (=>env-obarray-key! name))
+                  (st     (*the-environment*))
+                  (obj    (view st =>name))
+                  (obj    (if obj obj (lens-set! (new-symbol name) st =>name)))
+                  )
+              (cond
+               ((eq? def 'defun) func)
+               ((eq? def 'defmacro) (set!lambda-kind func 'macro) func)
+               (else (error "expecting function head to be 'defun or 'defmacro" def))
+               )
+              (cond
+               ((sym-type? obj) ;; update and return the interned symbol object
+                (lens-set func obj =>sym-function*!))
+               (else (eval-error "failed to intern symbol" sym obj)))
+              ))
+           (else (eval-error "wrong type argument, expected symbol" sym))
+           ))
+         ((,name ,args ,body ...) (eval-error "malformed arglist" args))
+         )))))
+
+
+(define (eval-defun-args-body kind arg-exprs body-expr)
+  (define (non-symbol-error sym)
+    (eval-error "invalid-function, arguments declaration expect symbol" sym)
+    )
+  (define (get-body func)
+    (match body-expr
+      ((,docstr ,body-expr ...)
+       (cond
+        ((string? docstr)
+         (set!lambda-docstring func docstr)
+         (set!lambda-body func body-expr)
+         func)
+        (else
+         (set!lambda-body func (cons docstr body-expr))
+         func)))
+      (,body-expr
+       (set!lambda-body func body-expr)
+       func)
       ))
-   ))
-
-
-(define elisp-eval-progn-step
-  ;; Evaluate a single element of a "progn" form.
-  (/current-expr ;; make sure the current input is a cursor
-   (lambda (st stmt)
-     (display "elisp-eval: ")(write stmt)(newline);;DEBUG
-     (elisp-eval-step-into-form stmt)
-     )))
+  (define (get-rest-args arg-exprs args optargs)
+    (match arg-exprs
+      (() (eval-error "invalid function, no argument declaration after &rest delimiter"))
+      ((,sym)
+       (cond
+        ((symbol? sym)
+         (get-body (new-lambda kind (reverse args) (reverse optargs) sym)))
+        (else (non-symbol-error sym))
+        ))
+      ))
+  (define (get-opt-args arg-exprs args optargs)
+    (match arg-exprs
+      (() (get-body (new-lambda kind (reverse args) (reverse optargs))))
+      ((&optional ,more ...)
+       (eval-error "invalid function, more than one &optional argument delimiter" arg-exprs))
+      ((&rest ,arg-exprs ...)
+       (get-rest-args arg-exprs args optargs))
+      ((,sym ,arg-exprs ...)
+       (cond
+        ((symbol? sym) (get-opt-args arg-exprs args (cons sym optargs)))
+        (else (non-symbol-error sym))
+        ))
+      ))
+  (define (get-args arg-exprs args)
+    (match arg-exprs
+      (() (get-body (new-lambda kind (reverse args))))
+      ((&optional ,arg-exprs ...) (get-opt-args arg-exprs args '()))
+      ((&rest ,arg-exprs ...) (get-rest-args arg-exprs args '()))
+      ((,sym ,arg-exprs ...)
+       (cond
+        ((symbol? sym) (get-args arg-exprs (cons sym args)))
+        (else (non-symbol-error sym))
+        ))
+      ))
+  (get-args arg-exprs '()))
 
 ;;--------------------------------------------------------------------------------------------------
+;; Interface between Scheme and Elisp
 
 (define (scheme->elisp val)
   (cond
@@ -871,6 +976,16 @@
    ))
 
 
+(define (elisp->scheme val)
+  (cond
+   ((eq? val nil) '())
+   ((eq? val t) #t)
+   ((pair? val) (cons (elisp->scheme (car val)) (elisp->scheme (cdr val))))
+   ((sym-type? val) (sym-value val))
+   (else val)
+   ))
+
+
 (define (pure* proc)
   ;; Construct a procedure that always ignores it's first
   ;; argument. This is becuase whenever a built-in functions is
@@ -879,7 +994,7 @@
   ;; like + in a lambda that ignores that first argument, and takes an
   ;; arbitrary number of arguments.
   ;;------------------------------------------------------------------
-  (lambda (st . args) (put-const (apply proc (map scheme->elisp args))))
+  (lambda args (scheme->elisp (apply proc (map elisp->scheme args))))
   )
 
 
@@ -887,212 +1002,82 @@
   ;; Like `PURE*`, but construct a procedure that takes exactly N+1
   ;; arguments and applies them all (except the first argument, which
   ;; is a reference to the environment) to `PROC`.
-  (lambda (st . args)
+  (lambda (args)
     (let loop ((a args) (count n))
       (cond
        ((and (= n 0) (null? a))
         (apply proc (map scheme->elisp args)))
        ((and (> n 0) (null? a))
-        (elisp-error "not enough arguments" sym n args))
+        (eval-error "not enough arguments" sym n args))
        ((and (<= n 0) (pair? a))
-        (elisp-error "too many arguments" sym n args))
+        (eval-error "too many arguments" sym n args))
        (else
-        (elisp-error "wrong number of arguments" sym n args)
+        (eval-error "wrong number of arguments" sym n args)
         ))
       )))
 
+;;--------------------------------------------------------------------------------------------------
+;; Built-in functions
 
-(define (check-pc . checks)
-  ;; "Check program counter" monad: checks the item currently being
-  ;; inspected by the cursor of the pattern matcher state.
-  (apply
-   check elisp-env-progn
-   (lambda (cur) (and (not (cursor-end? cur)) (cursor-ref cur)))
-   checks))
+(define (eval-elisp-apply collect args)
+  (match args
+    (() (eval-error "wrong number of arguments" args))
+    ((,func ,args ...) (eval-bracketed-form func (collect args)))))
 
+(define (re-collect-args args)
+  ;; Collect arguments to `APPLY` and `FUNCALL` into a list single.
+  (match args
+    (() args)
+    (((,args ...)) args)
+    ((,arg (,args ...)) (cons arg args))
+    ((,arg ,args ...) (cons arg (re-collect-args args)))
+    ))
 
-(define elisp-setq
-  (/input
-   (lambda (st)
-     (let*((args (elisp-get-form-args st))
-           (arg-count (length args)))
-       (cond
-        ((= 1 (modulo arg-count 2))
-         (elisp-error "wrong number of arguments: setq" arg-count))
-        (else
-         (let loop ((args args))
-           (cond
-            ((null? args) skip) ;; no more symbols or values
-            (else
-             (try
-              (elisp-eval-step-into-form (cadr args))
-              (/output
-               (lambda (val)
-                 (lens-set val st
-                  (=>elisp-setq-bind! (symbol->string (car args))))
-                 (loop (cddr args)))))))
-           )))))))
+(define (elisp-funcall . args) (apply eval-elisp-apply (lambda (id) id) args))
 
+(define (elisp-apply . args) (apply eval-elisp-apply re-collect-args args))
 
-(define (elisp-def-local bind-semantics)
-  ;; Note that the `BIND-SEMANTICS` **must** push it's own stack frame
-  ;; because the semantics logic determines how many variables need to
-  ;; be allocated. This function here will pop the stack frame when
-  ;; the form body completes evaluation.
-  (try
-   (either
-    (try
-     (check-pc (lambda (binds) (null? binds) (pair? binds)))
-     bind-semantics)
-    (elisp-error "invalid let form, expecting bindings"))
-   (many (try step-pc elisp-eval-progn-step))
-   (/input elisp-env-pop-elstkfrm!)
-   ))
-
-
-(define (elisp-eval-let*-binding loop hash name . exprs)
-  ;; Evaluate a single let* binding. There must be only one value in
-  ;; the `EXPRS` list, if not an Elisp error is raised in the monad.
-  ;; The `CAR` of the `EXPRS` argument is evaluated, the result is
-  ;; bound to `NAME`.
-  (cond
-   ((not (symbol? name)) ;; ("non-symbol")
-    (elisp-error "let* bindings: wrong type argument" name))
-   ((null? exprs) ;; (symbol)
-    (hash-table-set! hash (symbol->string name) nil)
-    skip)
-   ((not (null? (cdr exprs))) ;; (symbol expr something-else...)
-    (elisp-error "let* bindings: can have only one value-form" name))
-   (else ;; (symbol expr)
-    (let ((name (symbol->string name))
-          (expr (car exprs)))
-      (try
-       (elisp-eval-step-into-form expr)
-       (/output
-        (lambda (val)
-          (hash-table-set! hash name val)
-          skip))
-       (loop)
-       )))
-   ))
-
-
-(define let*-semantics
-  ;; Called from within the `ELISP-DEF-LOCAL` monad. This procedure
-  ;; pushes a new empty stack frame, then loops over each binding
-  ;; expression in a LET* expression and evaluates each one in turn,
-  ;; updating the current stack frame on each iteration.
-  (/input
-   (lambda (st)
-     (let*((bindings (cursor-ref (elisp-env-progn st)))
-           (size (length bindings))
-           (hash (elisp-env-push-empty-elstkfrm! st size))
-           )
-       (let loop ((bindings bindings))
-         (cond
-          ((null? bindings) skip)
-          ((pair? (car bindings))
-           (try
-            (apply elisp-eval-let*-binding
-             (lambda () (loop (cdr bindings))) hash (car bindings))
-            (loop (cdr bindings))
-            ))
-          ((symbol? (car bindings))
-           (hash-table-set! hash (symbol->string (car bindings)) nil)
-           (loop (cdr bindings))
-           )
-          (else
-           (elisp-error "let* bindings: invalid form" bindings))
-          ))))))
-
-
-(define (elisp-zip-let-bindings st size syms vals)
-  ;; Part of the "let" bindings syntax, called after evaluating all of
-  ;; the values. This procedure pushes a new stack frame then binds
-  ;; all of the symbols to the values at once.
-  (let ((hash (elisp-env-push-empty-elstkfrm! st size)))
-    (let loop ((syms syms) (vals vals))
-      (cond
-       ((and (null? syms) (null? vals)) skip)
-       ((and (not (null? syms)) (not (null? vals)))
-        (hash-table-set! hash (car syms) (car vals))
-        (loop (cdr syms) (cdr vals)))
-       (else
-        (error "mismatched symbols and values lists" syms vals)
-        )))))
-
-
-(define let-semantics
-  ;; Called from within the `ELISP-DEF-LOCAL` monad. This procedure
-  ;; collects symbol-expression pairs. It then evaluates each
-  ;; expression and collects the result of each expression evaluation.
-  ;; It then pushes a new stack frame and associates all symbols with
-  ;; collected values.
-  (/input
-   (lambda (st)
-     (let*((bindings (cursor-ref (elisp-env-progn st)))
-           (size (length bindings))
-           )
-       (let loop ((bindings bindings) (syms '()) (exprs '()))
-         (cond
-          ((null? bindings)
-           (let loop ((exprs (reverse exprs)) (size 0) (results '()))
-             (cond
-              ((null? exprs)
-               (elisp-zip-let-bindings st size syms results))
-              (else
-               (try
-                (elisp-eval-step-into-form (car exprs))
-                (/output
-                 (lambda (val)
-                   (loop (cdr exprs) (+ 1 size) (cons val results))))
-                )))))
-          ((pair? (car bindings))
-           (let ((bind (car bindings)))
-             (cond
-              ((symbol? bind)
-               (loop (cdr bindings) (cons (car bindings) syms) (cons #f exprs))
-               )
-              ((and (pair? bind) (symbol? (car bind)))
-               (let*((name (car bind)) (expr (cdr bind)))
-                 (cond
-                  ((null? expr)
-                   (loop (cdr bindings) (cons name syms) (cons #f exprs))
-                   )
-                  ((null? (cdr expr))
-                   (loop (cdr bindings) (cons name syms) (cons (car expr) exprs)))
-                  (else
-                   (elisp-error "let bindings: can have only one value-form" bind)
-                   ))))
-              (else
-               (elisp-error "let-bindings: wrong type argument" bind)
-               ))))
-          (else
-           (elisp-error "let bindings: invalid form" bindings)
-           )))
+(define elisp-function
+  (make<macro>
+   (lambda args
+     (match args
+       ((,arg)
+        (let ((is-lambda? (lambda (o) (and (pair? o) (symbol? (car o)) (eq? 'lambda (car o)))))
+              (make-lambda (lambda (o) (apply (macro-procedure elisp-lambda) o)))
+              )
+          (cond
+           ((symbol? arg)
+            (let ((result (eval-sym-lookup (symbol->string arg))))
+              (cond
+               ((sym-type? result) (sym-function result))
+               ((lambda-type? result) result)
+               ((is-lambda? result) (make-lambda result))
+               (else (eval-error "not a function type" arg))
+               )))
+           ((is-lambda? arg) (make-lambda arg))
+           (else
+            (eval-error "wrong type argument, expecting function" arg)
+            ))))
+       (,any (eval-error "wrong number of arguments, expecting 1" any))
        ))))
 
 
-(define elisp-let (elisp-def-local let-semantics))
-
-(define elisp-let* (elisp-def-local let*-semantics))
-
+(define (elisp-list . args) (map scheme->elisp args))
 
 (define (elisp-car lst)
   (cond
-   ((eq? lst nil) (put-const nil))
-   ((null? lst) (put-const nil))
-   ((pair? lst) (put-const (car lst)))
-   (else (elisp-error "car: wrong type argument" lst))
+   ((eq? lst nil) nil)
+   ((null? lst) nil)
+   ((pair? lst) (car lst))
+   (else (eval-error "car: wrong type argument" lst))
    ))
-
 
 (define (elisp-cdr lst)
   (cond
-   ((eq? lst nil) (put-const nil))
-   ((null? lst) (put-const nil))
-   ((pair? lst) (put-const (cdr lst)))
-   (else (elisp-error "cdr: wrong type argument" lst))
+   ((eq? lst nil) nil)
+   ((null? lst) nil)
+   ((pair? lst) (cdr lst))
+   (else (eval-error "cdr: wrong type argument" lst))
    ))
 
 
@@ -1102,26 +1087,69 @@
   ;; mapping strings (or symbols) to values. Any values satisfying the
   ;; predicate `LAMBDA-TYPE?` are automatically interned as functions
   ;; rather than ordinary values.
-  ;;------------------------------------------------------------------
+   ;;------------------------------------------------------------------
   (make-parameter
-   `(
-    ;; ---- beginning of association list ----
+   `(;; ---- beginning of association list ----
 
      (+ . ,(pure* +))
      (- . ,(pure* -))
      (* . ,(pure* *))
 
-     (cons . ,(pure 2 'cons cons))
-     (car  . ,(pure 1 'car car))
-     (cdr  . ,(pure 1 'cdr cdr))
+     (cons    . ,(pure 2 'cons cons))
+     (car     . ,(pure 1 'car car))
+     (cdr     . ,(pure 1 'cdr cdr))
+     (list    . ,elisp-list)
 
-     (progn . ,(many elisp-eval-progn-step))
-     (setq . ,elisp-setq)
-     (let  . ,elisp-let)
-     (let* . ,elisp-let*)
+     (apply   . ,elisp-apply)
+     (funcall . ,elisp-funcall)
+     (lambda   . ,elisp-lambda)
+     (defun    . ,elisp-defun-defmacro)
+     (defmacro . ,elisp-defun-defmacro)
+     (function . ,elisp-function)
 
-    ;; ------- end of assocaition list -------
+     (progn    . ,elisp-progn)
+     (setq     . ,elisp-setq)
+     (let      . ,elisp-let)
+     (let*     . ,elisp-let*)
+
+     ;; ------- end of assocaition list -------
      )))
 
 
-;;TODO: create an evaluation rule to handle Scheme literals.
+(define elisp-reset-init-env!
+  (case-lambda
+    (() (elisp-reset-init-env (*elisp-init-env*)))
+    ((init-env) (elisp-reset-init-env! init-env (*the-environment*)))
+    ((init-env env)
+     (let loop ((init-env init-env) (errors '()))
+       (cond
+        ((null? init-env) errors)
+        (else
+         (let ((assoc (car init-env)))
+           (cond
+            ((pair? assoc)
+             (let*((val (cdr assoc))
+                   (val (if (or (not val) (null? val)) nil val)))
+               (lens-set val env (=>env-obarray-key! (ensure-string (car assoc))))
+               (loop (cdr init-env) errors)
+               ))
+            (else
+             (loop (cdr init-env) (cons assoc errors)))
+            ))))))))
+
+
+(define new-environment
+  ;; Construct a new Emacs Lisp environment object, which is a bit
+  ;; like an obarray.
+  (case-lambda
+    (() (new-environment #f))
+    ((inits) (new-environment inits #f))
+    ((inits size)
+     (let*((size (if (integer? size) size *default-obarray-size*))
+           (inits (if (and inits (pair? inits)) inits (*elisp-init-env*)))
+           (env (new-empty-env size))
+           )
+       (elisp-reset-init-env! inits env)
+       env))))
+
+(elisp-reset-init-env!)
