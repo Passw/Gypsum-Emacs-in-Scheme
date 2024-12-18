@@ -9,15 +9,6 @@
   (gypsum lens)
   (gypsum pretty)
   (only (gypsum cursor) new-cursor cursor-step!)
-  (only (gypsum match)
-        run-matcher run-matcher/cc
-        matcher-state-type?
-        match-success-type?
-        match-fail-type?
-        get-returned-value
-        =>matcher-state-input!
-        =>matcher-state-output!
-        )
   (only (gypsum lens vector)
         mutable-vector-type? =>mvector-index!
         new-mutable-vector
@@ -26,9 +17,12 @@
   (only (gypsum elisp-eval parser) read-elisp)
   )
 (cond-expand
-  ((or guile gambit)
+  ((or guile gambit stklos)
    (import
-     (only (srfi 69) hash-table-size hash-table-ref/default))
+     (only (srfi 69)
+           hash-table-size
+           hash-table-ref/default
+           alist->hash-table))
    )
   ((mit))
   (else
@@ -39,16 +33,14 @@
 
 ;;--------------------------------------------------------------------------------------------------
 
-(define test-elisp-env (new-elisp-env))
+(define test-elisp-env (new-environment (*elisp-init-env*)))
 
 (test-assert (elisp-environment-type? test-elisp-env))
 
-(env-intern!
- test-elisp-env
- '("hello" . "Hello, world!"))
+(lens-set "Hello, world!" test-elisp-env (=>env-obarray-key! "hello"))
 
 (test-assert "Hello, world!"
-  (view (env-intern-soft test-elisp-env "hello") =>sym-value!))
+  (view test-elisp-env (=>env-obarray-key! "hello")))
 
 ;;;;---- these use `ELSTKFRM-ZIP-ARGS` to run tests ----
 ;;
@@ -78,6 +70,8 @@
 ;;---- these use `ELSTKFRM-FROM-ARGS` to run tests ----
 
 (define test-elstkfrm #f)
+ ;; Test results are stored in a global variable so that tests can
+ ;; more easily be debugged in a REPL.
 
 (define (elstkfrm-trial syms opts rest args)
   (let ((func (new-lambda)))
@@ -88,75 +82,96 @@
     #t))
 
 
-;;(define (elstkfrm-expect assocs stk-count stk-error)
-;;  
-;;  )
-;;
-;;
-;;(define (elstkfrm-expect-not-enough)
-;;  (elstkfrm-expect #f #f "not enough arguments"))
-;;
-;;(define (elstkfrm-expect-too-many)
-;;  (elstkfrm-expect #f #f "too many arguments"))
-;;
-;;(elstkfrm-trial '() '() #f '())
-;;(test-assert (elstkfrm-expect '() 0 #f))
-;;
-;;(elstkfrm-trial '(zero one) '() #f '(0 1))
-;;(test-assert (elstkfrm-expect '((one . 1) (zero . 0)) 2 #f))
-;;
-;;(elstkfrm-trial '(zero one) '() #f '())
-;;(test-assert (elstkfrm-expect-not-enough))
-;;
-;;(elstkfrm-trial '(zero one) '() #f '(0))
-;;(test-assert (elstkfrm-expect-not-enough))
-;;
-;;(elstkfrm-trial '(zero one) '() #f '(0 1 2))
-;;(test-assert (elstkfrm-expect-too-many))
-;;
-;;(elstkfrm-trial '(zero one) '(two) #f '(0 1 2))
-;;(test-assert
-;;    (elstkfrm-expect
-;;     '((two . 2) (one . 1) (zero . 0)) 3 #f)
-;;  )
-;;
-;;(elstkfrm-trial '(zero one) '(two three) #f '(0 1 2))
-;;(test-assert
-;;    (elstkfrm-expect
-;;     '((two . 2) (one . 1) (zero . 0)) 3 #f)
-;;  )
-;;
-;;(elstkfrm-trial '(zero one) '(two three) #f '(0 1 2 3))
-;;(test-assert
-;;    (elstkfrm-expect
-;;     '((three . 3) (two . 2) (one . 1) (zero . 0)) 4 #f)
-;;  )
-;;
-;;(elstkfrm-trial '(zero one) '(two three) #f '(0 1 2 3 4))
-;;(test-assert (elstkfrm-expect-too-many))
-;;
-;;(elstkfrm-trial '(zero one) '(two three) 'rest '(0 1 2 3 4))
-;;(test-assert
-;;    (elstkfrm-expect
-;;     '((rest 4) (three . 3) (two . 2) (one . 1) (zero . 0)) 5 #f))
-;;
-;;(elstkfrm-trial '() '(zero one) #f '())
-;;(test-assert (elstkfrm-expect '() 0 #f))
-;;
-;;(elstkfrm-trial '() '(zero one) #f '(0))
-;;(test-assert (elstkfrm-expect '((zero . 0)) 1 #f))
-;;
-;;(elstkfrm-trial '() '(zero one) #f '(0 1))
-;;(test-assert (elstkfrm-expect '((one . 1) (zero . 0)) 2 #f))
-;;
-;;(elstkfrm-trial '() '(zero one) #f '(0 1 2))
-;;(test-assert (elstkfrm-expect-too-many))
-;;
-;;(elstkfrm-trial '() '(zero one) 'rest '(0 1 2))
-;;(test-assert (elstkfrm-expect '((rest 2) (one . 1) (zero . 0)) 3 #f))
-;;
-;;(elstkfrm-trial '() '(zero one) 'rest '(0 1 2 3))
-;;(test-assert (elstkfrm-expect '((rest 2 3) (one . 1) (zero . 0)) 3 #f))
+(define (elstkfrm-expect assocs stk-count stk-error)
+  (if stk-error
+      (equal? stk-error (view test-elstkfrm =>elisp-eval-error-message))
+      (and
+       (= stk-count (hash-table-size test-elstkfrm))
+       (let loop ((assocs assocs))
+         (cond
+          ((null? assocs) #t)
+          (else
+           (let*((pair (car assocs))
+                 (key (car pair))
+                 (expected (cdr pair))
+                 (actual
+                  (hash-table-ref/default
+                   test-elstkfrm (symbol->string key) #f))
+                 )
+             (if (equal? expected actual)
+                 (loop (cdr assocs))
+                 (error
+                  "the \"elstkfrm\" did not have expected value at key"
+                  #:key key #:expected expected #:actual actual
+                  ))))
+              )))
+      ))
+
+
+(define (elstkfrm-expect-not-enough)
+  (elstkfrm-expect #f #f "not enough arguments"))
+
+(define (elstkfrm-expect-too-many)
+  (elstkfrm-expect #f #f "too many arguments"))
+
+(elstkfrm-trial '() '() #f '())
+(test-assert (elstkfrm-expect '() 0 #f))
+
+(elstkfrm-trial '(zero one) '() #f '(0 1))
+(test-assert (elstkfrm-expect '((one . 1) (zero . 0)) 2 #f))
+
+(elstkfrm-trial '(zero one) '() #f '())
+(test-assert (elstkfrm-expect-not-enough))
+
+(elstkfrm-trial '(zero one) '() #f '(0))
+(test-assert (elstkfrm-expect-not-enough))
+
+(elstkfrm-trial '(zero one) '() #f '(0 1 2))
+(test-assert (elstkfrm-expect-too-many))
+
+(elstkfrm-trial '(zero one) '(two) #f '(0 1 2))
+(test-assert
+    (elstkfrm-expect
+     '((two . 2) (one . 1) (zero . 0)) 3 #f)
+  )
+
+(elstkfrm-trial '(zero one) '(two three) #f '(0 1 2))
+(test-assert
+    (elstkfrm-expect
+     '((two . 2) (one . 1) (zero . 0)) 3 #f)
+  )
+
+(elstkfrm-trial '(zero one) '(two three) #f '(0 1 2 3))
+(test-assert
+    (elstkfrm-expect
+     '((three . 3) (two . 2) (one . 1) (zero . 0)) 4 #f)
+  )
+
+(elstkfrm-trial '(zero one) '(two three) #f '(0 1 2 3 4))
+(test-assert (elstkfrm-expect-too-many))
+
+(elstkfrm-trial '(zero one) '(two three) 'rest '(0 1 2 3 4))
+(test-assert
+    (elstkfrm-expect
+     '((rest 4) (three . 3) (two . 2) (one . 1) (zero . 0)) 5 #f))
+
+(elstkfrm-trial '() '(zero one) #f '())
+(test-assert (elstkfrm-expect '() 0 #f))
+
+(elstkfrm-trial '() '(zero one) #f '(0))
+(test-assert (elstkfrm-expect '((zero . 0)) 1 #f))
+
+(elstkfrm-trial '() '(zero one) #f '(0 1))
+(test-assert (elstkfrm-expect '((one . 1) (zero . 0)) 2 #f))
+
+(elstkfrm-trial '() '(zero one) #f '(0 1 2))
+(test-assert (elstkfrm-expect-too-many))
+
+(elstkfrm-trial '() '(zero one) 'rest '(0 1 2))
+(test-assert (elstkfrm-expect '((rest 2) (one . 1) (zero . 0)) 3 #f))
+
+(elstkfrm-trial '() '(zero one) 'rest '(0 1 2 3))
+(test-assert (elstkfrm-expect '((rest 2 3) (one . 1) (zero . 0)) 3 #f))
 
 
 ;;--------------------------------------------------------------------------------------------------
@@ -256,65 +271,55 @@ top: glo = top
 
 
 ;; Raw results of evaluation
-(define test-elisp-matcher-state #f)
-(define test-elisp-eval-error #f)
+(define (test-elisp-reset-env!)
+  (set! test-elisp-env (new-environment (*elisp-init-env*))))
+
+(define (test-elisp-eval! expr)
+  (elisp-eval! expr test-elisp-env))
+
+(define (test-error-elisp-eval! expr)
+  (let ((result (test-elisp-eval! expr)))
+    (and (elisp-eval-error-type? result)
+         (view result =>elisp-eval-error-message))))
 
 
-(define (reset-elisp-eval)
-  (set! test-elisp-env (new-elisp-env)))
+(test-equal "hello" (test-elisp-eval! "hello"))
 
+(test-eqv 3 (test-elisp-eval! '(+ 1 2)))
 
-(define (test-elisp-eval progn)
-  (let-values (((st err) (elisp-eval! progn test-elisp-env)))
-    (set! test-elisp-eval-error err)
-    (when err (display err) (newline))
-    (cond
-     ((match-fail-type? st) (display st) (newline))
-     ((match-success-type? st)
-      (display (get-returned-value st)) (newline)
-      (get-returned-value st))
-     ((matcher-state-type? st)
-      (set! test-elisp-env (view st =>matcher-state-input!))
-      (set! test-elisp-matcher-state st)
-      (view st =>matcher-state-output!)))
-    ))
+(test-eqv 2 (test-elisp-eval! '(progn 1 2)))
 
+(test-eqv 3 (test-elisp-eval! '(progn 1 2 (+ 1 2))))
 
-(define (test-elisp-reset-env)
-  (set! test-elisp-env (new-elisp-env)))
-
-
-(test-equal "hello" (test-elisp-eval "hello"))
-
-;; TODO: create an empty `<INTERP-STATE>` and use it to run some of
-;; the evaluators, starting with `ELSTKFRM-FROM-ARGS`.
-
-
-(test-eqv 3 (test-elisp-eval '(+ 1 2)))
+(test-eqv 4 (test-elisp-eval! '(progn (setq a 4) a)))
 
 (test-eqv 5
-  (test-elisp-eval
+  (test-elisp-eval!
    '(progn
-     (setq a 2)
-     (setq b 3)
+     (setq a 2 b 3)
      (+ a b)
      )))
 
 (test-eqv 8
-  (test-elisp-eval
+  (test-elisp-eval!
    '(progn
-     (setq a 3)
-     (setq b 5)
-     (setq c (+ a b))
+     (setq a 3 b 5 c (+ a b))
      c)))
 
+(test-equal "wrong number of arguments, setq"
+  (test-error-elisp-eval! '(setq a)))
+
+(test-equal '(1 2 3) (test-elisp-eval! '(list 1 2 (+ 1 2))))
+
 (test-eqv 13
-  (test-elisp-eval
+  (test-elisp-eval!
    '(let*((a 5) (b 8)) (+ a b))))
 
 (test-eqv 21
-  (test-elisp-eval
+  (test-elisp-eval!
    '(let*((a 8) (b (+ 5 a))) (+ a b))))
+
+
 
 ;;--------------------------------------------------------------------------------------------------
 
