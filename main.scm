@@ -1,8 +1,3 @@
-(import
-  (scheme base)
-  (scheme write)
-  (scheme load))
-
 (cond-expand
   (guile-3
    (load "./main-guile.scm")
