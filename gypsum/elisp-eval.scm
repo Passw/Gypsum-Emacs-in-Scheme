@@ -1088,6 +1088,31 @@
        ))))
 
 
+(define elisp-backquote
+  (make<macro>
+   (lambda exprs
+     (let expr-loop ((exprs (cdr exprs)))
+       (match exprs
+         (() nil)
+         (((|,| ,unq) ,exprs ...)
+          (cons (eval-form unq) (expr-loop exprs))
+          )
+         (((|,@| ,splice) ,exprs ...)
+          (let ((elems (eval-form splice)))
+            (let elem-loop ((elems elems))
+              (cond
+               ((null? elems) (expr-loop exprs))
+               ((pair? elems) (cons (car elems) (elem-loop (cdr elems))))
+               (else (cons elems (expr-loop exprs)))
+               )))
+          )
+         (((,sub-exprs ...) ,exprs ...)
+          (cons (expr-loop sub-exprs) (expr-loop exprs))
+          )
+         ((,elem ,exprs ...) (cons elem (expr-loop exprs)))
+         (,elem elem)
+         )))))
+
 (define *elisp-init-env*
   ;; A parameter containing the default Emacs Lisp evaluation
   ;; environment. This environment is an ordinary association list
@@ -1107,7 +1132,10 @@
      (cdr     . ,(pure 1 'cdr cdr))
      (list    . ,elisp-list)
 
-     (quote   . ,elisp-quote)
+     (quote     . ,elisp-quote)
+     (backquote . ,elisp-backquote)
+     (|`|       . ,elisp-backquote)
+
      (apply   . ,elisp-apply)
      (funcall . ,elisp-funcall)
      (lambda   . ,elisp-lambda)

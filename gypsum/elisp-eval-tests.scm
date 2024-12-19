@@ -323,6 +323,10 @@ top: glo = top
 
 (test-equal '(1 2 3) (test-elisp-eval! '(quote (1 2 3))))
 
+(test-equal '((1 2 3)) (test-elisp-eval! '(backquote (1 2 (|,| (+ 1 2))))))
+
+(test-equal '((1 2 3)) (test-elisp-eval! '(|`| (1 2 (|,| (+ 1 2))))))
+
 (test-assert
   (let ((func (test-elisp-eval! '(lambda () nil))))
     (and
