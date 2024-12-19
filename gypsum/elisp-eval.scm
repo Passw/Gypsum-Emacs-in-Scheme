@@ -29,8 +29,8 @@
   (plist  sym-plist     set!sym-plist)
   )
 
-(define nil (make<sym> "nil" #f #f #f))
-(define t   (make<sym> "t"   #t #f #f))
+(define nil (make<sym> "nil" '() #f #f))
+(define t   (make<sym> "t"   #t  #f #f))
 
 
 (define =>sym-name
@@ -693,7 +693,7 @@
   ;; This is where evaluation begins. This is the actual `EVAL`
   ;; procedure for Emacs Lisp.
   (match expr
-    (() nil)
+    (() '())
     ((,head ,args ...) (eval-bracketed-form head args))
     (,literal
      (cond
@@ -722,7 +722,7 @@
 (define (eval-progn-body exprs)
   (let loop ((exprs exprs))
     (match exprs
-      (() nil)
+      (() '())
       ((,final) (eval-form final))
       ((,head ,more ...) (eval-form head) (loop more))
       )))
@@ -766,7 +766,7 @@
          (eval-error "wrong number of arguments, setq" (- argc 1))
          )
         (else
-         (let loop ((args (cdr args)) (argc 0) (last-bound nil))
+         (let loop ((args (cdr args)) (argc 0) (last-bound '()))
            (match args
              (() last-bound)
              ((,sym ,expr ,more ...)
@@ -784,7 +784,7 @@
    (lambda expr
      (let ((st (*the-environment*)))
        (match (cdr expr)
-         (() nil)
+         (() '())
          (((,bindings ...) ,progn-body ...)
           (let loop ((unbound bindings) (bound '()) (size 0))
             (match unbound
@@ -794,7 +794,7 @@
                  (env-pop-elstkfrm! st)
                  result))
               (((,sym) ,more ...)
-               (loop more (cons (new-symbol sym nil) bound) (+ 1 size))
+               (loop more (cons (new-symbol sym '()) bound) (+ 1 size))
                )
               (((,sym ,expr) ,more ...)
                (let ((result (eval-form expr)))
@@ -806,7 +806,7 @@
                (eval-error "bindings can have only one value form" (car unbound))
                )
               ((,sym ,more ...)
-               (loop more (cons (new-symbol sym nil) bound) (+ 1 size))
+               (loop more (cons (new-symbol sym '()) bound) (+ 1 size))
                )
               (,otherwise
                (eval-error "wrong type argument, expecting list" otherwise)
@@ -821,7 +821,7 @@
    (lambda expr
      (let ((st (*the-environment*)))
        (match (cdr expr)
-         (() nil)
+         (() '())
          (((,bindings ...) ,progn-body ...)
           (let ((elstkfrm (env-push-new-elstkfrm! st (length bindings) '())))
             (let loop ((unbound bindings))
@@ -831,7 +831,7 @@
                    (env-pop-elstkfrm! st)
                    result))
                 (((,sym) ,more ...)
-                 (elstkfrm-sym-intern! elstkfrm sym nil)
+                 (elstkfrm-sym-intern! elstkfrm sym '())
                  (loop more)
                  )
                 (((,sym ,expr) ,more ...)
@@ -843,7 +843,7 @@
                  (eval-error "bindings can have only one value form" (car unbound))
                  )
                 ((,sym ,more ...)
-                 (elstkfrm-sym-intern! elstkfrm sym nil)
+                 (elstkfrm-sym-intern! elstkfrm sym '())
                  (loop more)
                  )
                 (,otherwise
@@ -960,27 +960,50 @@
 ;; Interface between Scheme and Elisp
 
 (define (scheme->elisp val)
-  (cond
-   ((not val) nil)
-   ((null? val) nil)
-   ((pair? val)
-    (cons
-     (scheme->elisp (car val))
-     (scheme->elisp (cdr val)))
-    )
-   ((char? val) (char->integer val))
-   (else val)
-   ))
+  (define (replace val)
+    (cond
+     ((pair? val)
+      (let ((head (car val)) (tail (cdr val)))
+        (cond
+         ((eq? head 'unquote)    (cons '|,| tail))
+         ((eq? head 'quasiquote) (cons '|`| tail))
+         (else val))))
+     (else val)
+     ))
+  (let loop ((val (replace val)))
+    (cond
+     ((not   val) '())
+     ((pair? val)
+      (let ((head (car val)) (tail (cdr val)))
+        (cons
+         (if (pair? head) (scheme->elisp head) (loop head))
+         (loop tail))))
+     ((char? val) (char->integer val))
+     (else val)
+     )))
 
 
 (define (elisp->scheme val)
-  (cond
-   ((eq? val nil) '())
-   ((eq? val t) #t)
-   ((pair? val) (cons (elisp->scheme (car val)) (elisp->scheme (cdr val))))
-   ((sym-type? val) (sym-value val))
-   (else val)
-   ))
+  (define (replace val)
+    (cond
+     ((pair? val)
+      (let ((head (car val)) (tail (cdr val)))
+        (cond
+         ((eq? head '|`|) (cons 'quasiquote tail))
+         ((eq? head '|,|) (cons 'unquote    tail))
+         (else val)
+         )))
+     (else val)
+     ))
+  (let loop ((val (replace val)))
+    (cond
+     ((pair? val)
+      (let ((head (car val)) (tail (cdr val)))
+        (cons
+         (if (pair? val) (elisp->scheme head) (loop head))
+         (elisp->scheme tail))))
+     (else val)
+     )))
 
 
 (define (pure* proc)
@@ -1049,13 +1072,13 @@
                ((sym-type? result) (sym-function result))
                ((lambda-type? result) result)
                ((is-lambda? result) (make-lambda result))
-               (else (eval-error "not a function type" arg))
+               (else (eval-error "not a function type" "function" arg))
                )))
            ((is-lambda? arg) (make-lambda arg))
            (else
-            (eval-error "wrong type argument, expecting function" arg)
+            (eval-error "wrong type argument" "function" arg)
             ))))
-       (,any (eval-error "wrong number of arguments, expecting 1" any))
+       (,any (eval-error "wrong number of arguments" "function" #:expecting 1 #:value any))
        ))))
 
 
@@ -1063,18 +1086,18 @@
 
 (define (elisp-car lst)
   (cond
-   ((eq? lst nil) nil)
-   ((null? lst) nil)
+   ((eq? lst nil) '())
+   ((null? lst) '())
    ((pair? lst) (car lst))
-   (else (eval-error "car: wrong type argument" lst))
+   (else (eval-error "wrong type argument" "car" lst))
    ))
 
 (define (elisp-cdr lst)
   (cond
-   ((eq? lst nil) nil)
-   ((null? lst) nil)
+   ((eq? lst nil) '())
+   ((null? lst) '())
    ((pair? lst) (cdr lst))
-   (else (eval-error "cdr: wrong type argument" lst))
+   (else (eval-error "wrong type argument" "cdr" lst))
    ))
 
 
@@ -1083,7 +1106,7 @@
    (lambda args
      (match (cdr args)
        ((,expr) expr)
-       ((,expr ,extra ...) (eval-error "wrong number of arguments" extra))
+       ((,expr ,extra ...) (eval-error "wrong number of arguments" "quote" extra))
        (,any any)
        ))))
 
@@ -1093,7 +1116,7 @@
    (lambda exprs
      (let expr-loop ((exprs (cdr exprs)))
        (match exprs
-         (() nil)
+         (() '())
          (((|,| ,unq) ,exprs ...)
           (cons (eval-form unq) (expr-loop exprs))
           )
@@ -1122,6 +1145,9 @@
    ;;------------------------------------------------------------------
   (make-parameter
    `(;; ---- beginning of association list ----
+
+     (nil . ,nil)
+     (t   . ,t)
 
      (+ . ,(pure* +))
      (- . ,(pure* -))
@@ -1165,7 +1191,7 @@
            (cond
             ((pair? assoc)
              (let*((val (cdr assoc))
-                   (val (if (or (not val) (null? val)) nil val)))
+                   (val (if (or (not val) (null? val)) '() val)))
                (lens-set val env (=>env-obarray-key! (ensure-string (car assoc))))
                (loop (cdr init-env) errors)
                ))
