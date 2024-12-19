@@ -598,17 +598,15 @@
   ;;     exception.
   ;;------------------------------------------------------------------
   (case-lambda
-    ((expr)
+    ((expr) (elisp-eval! expr (*the-environment*)))
+    ((expr env)
      (call/cc
       (lambda (halt)
         (lens-set halt (*the-environment*) =>env-fail-cc*!)
-        (let ((return (eval-form expr)))
+        (let ((return (eval-form (scheme->elisp expr))))
           (lens-set #f (*the-environment*) =>env-fail-cc*!)
           return
-          ))))
-    ((expr env)
-     (parameterize ((*the-environment* env))
-       (elisp->scheme (elisp-eval! expr))))))
+          ))))))
 
 ;;====================================================================
 ;; The interpreting evaluator. Matches patterns on the program and
@@ -1114,27 +1112,31 @@
 (define elisp-backquote
   (make<macro>
    (lambda exprs
-     (let expr-loop ((exprs (cdr exprs)))
-       (match exprs
-         (() '())
-         (((|,| ,unq) ,exprs ...)
-          (cons (eval-form unq) (expr-loop exprs))
-          )
-         (((|,@| ,splice) ,exprs ...)
-          (let ((elems (eval-form splice)))
-            (let elem-loop ((elems elems))
-              (cond
-               ((null? elems) (expr-loop exprs))
-               ((pair? elems) (cons (car elems) (elem-loop (cdr elems))))
-               (else (cons elems (expr-loop exprs)))
-               )))
-          )
-         (((,sub-exprs ...) ,exprs ...)
-          (cons (expr-loop sub-exprs) (expr-loop exprs))
-          )
-         ((,elem ,exprs ...) (cons elem (expr-loop exprs)))
-         (,elem elem)
-         )))))
+     (match (cdr exprs)
+       ((,exprs)
+        (let expr-loop ((exprs exprs))
+          (match exprs
+            (() '())
+            (((|,| ,unq) ,exprs ...)
+             (cons (eval-form unq) (expr-loop exprs))
+             )
+            (((|,@| ,splice) ,exprs ...)
+             (let ((elems (eval-form splice)))
+               (let elem-loop ((elems elems))
+                 (cond
+                  ((null? elems) (expr-loop exprs))
+                  ((pair? elems) (cons (car elems) (elem-loop (cdr elems))))
+                  (else (cons elems (expr-loop exprs)))
+                  )))
+             )
+            (((,sub-exprs ...) ,exprs ...)
+             (cons (expr-loop sub-exprs) (expr-loop exprs))
+             )
+            ((,elem ,exprs ...) (cons elem (expr-loop exprs)))
+            (,elem elem)
+            )))
+       (,any (eval-error "wrong number of arguments" "backquote" any))
+       ))))
 
 (define *elisp-init-env*
   ;; A parameter containing the default Emacs Lisp evaluation

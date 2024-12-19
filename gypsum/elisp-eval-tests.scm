@@ -321,11 +321,21 @@ top: glo = top
 
 (test-eq '() (test-elisp-eval! '(setq)))
 
+(test-equal '() (test-elisp-eval! '(quote ())))
+
 (test-equal '(1 2 3) (test-elisp-eval! '(quote (1 2 3))))
 
-(test-equal '((1 2 3)) (test-elisp-eval! '(backquote (1 2 (|,| (+ 1 2))))))
+(test-equal '(1 2 3) (test-elisp-eval! '(backquote (1 2 (|,| (+ 1 2))))))
 
-(test-equal '((1 2 3)) (test-elisp-eval! '(|`| (1 2 (|,| (+ 1 2))))))
+(test-equal '() (test-elisp-eval! '(backquote ())))
+
+(test-equal '(1 2 3) (test-elisp-eval! '(|`| (1 2 (|,| (+ 1 2))))))
+
+(test-equal '(1 2 3) (apply test-elisp-eval! '(`(1 2 ,(+ 1 2)))))
+
+(test-equal '((+ 3 5) = 8)
+  (test-elisp-eval! '(backquote ((+ ,(+ 1 2) ,(+ 2 3)) = ,(+ 1 2 2 3)))))
+
 
 (test-assert
   (let ((func (test-elisp-eval! '(lambda () nil))))
