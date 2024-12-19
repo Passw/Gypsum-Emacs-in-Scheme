@@ -107,23 +107,17 @@
    string-ref #f (lambda (obj i) (values)))
   )
 
-(define new-cursor
+(define maybe-new-cursor
   ;; Construct a <cursor-type> object with a vector, list, or string.
   ;; Optionally pass the initial index as the second argument.
   ;;
-  ;;  1. The object over which to iterate
-  ;;  2. The initial index (defaults to zero)
+  ;;  1. the object over which to iterate. If it is not iterable,
+  ;;     meaning it does not have a cursor interface registered by
+  ;;     `DECLARE-INTERFACE/CURSOR` for the type of value this
+  ;;     argument is, #f is returned
   ;;
-  ;; If you want to iterate over other data types, you must pass four
-  ;; additional arguments (the four iteration procedures), which are:
+  ;;  2. (optional) the initial index (defaults to zero)
   ;;
-  ;;  3. procedure to access the current index in the `CURSOR-OBJECT`
-  ;;  4. predicate returns `#t` when iteration is done.
-  ;;  5. procedure to step to the next index in the `CURSOR-OBJECT`
-  ;;  6. optional `#f`, procedure to change the current index
-  ;;
-  ;; It is also possible to declare other types for which a cursor can
-  ;; be constructed using `declare-rule/cursor-iteration`.
   ;;------------------------------------------------------------------
   (case-lambda
     ((obj) (new-cursor obj 0))
@@ -141,6 +135,28 @@
        (let ((iface (get-interface/cursor obj)))
          (cond
           (iface (make<cursor> obj i iface))
-          (else (error "cannot create cursor for object of type" obj))
+          (else #f)
           ))))
      )))
+
+
+(define (new-cursor obj . args)
+  ;; Sames as `MAYBE-NEW-CURSOR`, one iterable `OBJ` as an argument
+  ;; and an optional initial iteration index as a second argument, but
+  ;; raises an error if the first `OBJ` argument is not a value over
+  ;; which a cursor can be iterated.
+  ;;------------------------------------------------------------------
+  (let ((cur (apply maybe-new-cursor obj args)))
+    (if (not cur)
+        (error "cannot create cursor for object of type" obj)
+        cur)))
+
+
+(define (new-cursor-if-iterable obj . args)
+  ;; Try to defin a new cursor with the given `OBJ` (and optional
+  ;; initial index) applied to `MAYBE-NEW-CURSOR`, but if `OBJ` is not
+  ;; iterable, simply return `OBJ` as is.
+  ;;------------------------------------------------------------------
+  (let ((cur (apply maybe-new-cursor obj args)))
+    (if (not cur) obj cur)))
+

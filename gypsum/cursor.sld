@@ -14,7 +14,8 @@
        ))
     )
   (export
-   new-cursor  cursor-type?  cursor-object
+   new-cursor  maybe-new-cursor  new-cursor-if-iterable
+   cursor-type?  cursor-object
    cursor-index  set!cursor-index  =>cursor-index!
    cursor-ref  cursor-end?  cursor-step!
    cursor-collect-list
