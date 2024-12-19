@@ -136,7 +136,11 @@
     ((kind args opts rest) (new-lambda kind args opts rest #f #f))
     ((kind args opts rest body) (new-lambda kind args opts rest body #f))
     ((kind args opts rest body docstr)
-     (make<lambda> kind args opts rest docstr #f #f body))
+     (make<lambda> kind
+      (map ensure-string args)
+      (map ensure-string opts)
+      (if rest (ensure-string rest) #f)
+      docstr #f #f body))
     ))
 
 (define (canon-lambda unit) (=>canonical unit new-lambda empty-lambda?))

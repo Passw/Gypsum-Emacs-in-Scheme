@@ -92,11 +92,9 @@
           ((null? assocs) #t)
           (else
            (let*((pair (car assocs))
-                 (key (car pair))
+                 (key (symbol->string (car pair)))
                  (expected (cdr pair))
-                 (actual
-                  (hash-table-ref/default
-                   test-elstkfrm (symbol->string key) #f))
+                 (actual (hash-table-ref/default test-elstkfrm key #f))
                  )
              (if (equal? expected actual)
                  (loop (cdr assocs))
@@ -347,7 +345,13 @@ top: glo = top
     ))
 
 (test-equal '(1 + 2 = 3)
-  (test-elisp-eval! '(apply (lambda (a b) (list a '+ b '= (+ a b))) '(1 2))))
+  (test-elisp-eval!
+   '(progn
+     (setq a 3 b 5)
+     (apply
+      (lambda (a b)
+        (list a '+ b '= (+ a b)))
+      '(1 2)))))
 
 ;;--------------------------------------------------------------------------------------------------
 

@@ -39,6 +39,7 @@
              hash-table?
              make-hash-table
              alist->hash-table
+             hash-table->alist
              hash-table-set!
              hash-table-delete!
              hash-table-ref/default
