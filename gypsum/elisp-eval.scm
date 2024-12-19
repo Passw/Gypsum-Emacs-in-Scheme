@@ -266,8 +266,11 @@
 
 
 (define (elstkfrm-sym-intern! elstkfrm name val)
-  (let ((name (ensure-string name)))
-    (hash-table-set! elstkfrm name (new-symbol name val))))
+  (let*((name (ensure-string name))
+        (obj (new-symbol name val))
+        )
+    (hash-table-set! elstkfrm name obj)
+    obj))
 
 
 (define (elstkfrm-zip-args syms opts rest args)
@@ -743,11 +746,141 @@
 ;; over the head of the form before evaluating the macro. This makes
 ;; built-in macro bahvior a bit more Scheme-like.
 
-
 (define elisp-progn
   (make<macro>
    (lambda expr
      (eval-progn-body (cdr expr)))))
+
+(define elisp-prog1
+  (make<macro>
+   (lambda expr
+     (match (cdr expr)
+       (() (eval-error "wrong number of arguments" "prog1" 0))
+       ((,first ,more ...)
+        (let ((return (eval-form first)))
+          (eval-progn-body more)
+          return
+          ))))))
+
+(define elisp-prog2
+  (make<macro>
+   (lambda expr
+     (define (fail-nargs n)
+       (eval-error "wrong number of arguments" "prog2" n))
+     (match (cdr expr)
+       (() (fail-nargs 0))
+       ((,any) (fail-nargs 1))
+       ((,first ,second ,more ...)
+        (eval-form first)
+        (let ((return (eval-form second)))
+          (eval-progn-body more)
+          return
+          ))))))
+
+
+(define (elisp-logic conjunction)
+  (make<macro>
+   (lambda exprs
+     (let loop ((exprs (cdr exprs)))
+       (match exprs
+         (() (if conjunction #t '()))
+         ((,final) (eval-form final))
+         ((,next ,more ...)
+          (let ((success (eval-form next)))
+            (if conjunction
+                (if (elisp-null? success) '() (loop more))
+                (if (elisp-null? success) (loop more) #t))
+            )))))))
+
+(define elisp-and (elisp-logic #t))
+(define elisp-or  (elisp-logic #f))
+
+
+(define elisp-if
+  (make<macro>
+   (lambda exprs
+     (match exprs
+       (() (eval-error "wrong number of arguments" "if" 0))
+       ((if ,cond-expr) (eval-error "wrong number of arguments" "if" 1))
+       ((if ,cond-expr ,then-exprs ,else-exprs ...)
+        (let ((result (eval-form cond-expr)))
+          (if (not (elisp-null? result))
+              (eval-form then-exprs)
+              (eval-progn-body else-exprs)
+              )))))))
+
+
+(define elisp-cond
+  (make<macro>
+   (lambda exprs
+    (define (eval-cond test body)
+      (let ((result (eval-form test)))
+        (if (not (elisp-null? result))
+            (values #t (eval-progn-body body))
+            (values #f #f))))
+     (let loop ((exprs (cdr exprs)))
+       (match exprs
+         (() '())
+         ((() ,more ...) (loop more))
+         (((,cond-expr ,body ...) ,more ...)
+          (let-values
+              (((success return) (eval-cond cond-expr body)))
+            (if success return (loop more))
+            )))))))
+
+
+(define elisp-while
+  (make<macro>
+   (lambda exprs
+     (match (cdr exprs)
+       (() (eval-error "wrong number of arguments" "while" 0))
+       ((,cond-expr ,body ...)
+        (let loop ()
+          (let ((success (eval-form cond-expr)))
+            (if (not (elisp-null? success))
+                (let () (eval-progn-body body) (loop))
+                '() ;; while forms always evaluate to nil
+                ))))))))
+
+
+(define elisp-dotimes
+  (make<macro>
+   (lambda exprs
+     (define (fail-nargs n)
+       (eval-error "wrong number of arguments" "dotimes" n))
+     (match (cdr exprs)
+       (() (fail-nargs 0))
+       ((,any) (fail-nargs 1))
+       ((() ,any ...) (eval-error "expecting variable name" "dotimes" '()))
+       (((,var) ,any ...) (eval-error "expecting initial number" "dotimes" var))
+       (((,var ,limit-expr ,final-exprs ...) ,body ...)
+        (cond
+         ((symbol? var)
+          (let ((limit (eval-form limit-expr)))
+            (cond
+             ((integer? limit)
+              (cond
+               ((<= limit 0) (eval-progn-body final-exprs))
+               (else
+                (let*((st (*the-environment*))
+                      (elstkfrm (env-push-new-elstkfrm! st 1 '()))
+                      (obj (elstkfrm-sym-intern! elstkfrm (symbol->string var) 0))
+                      )
+                  (let loop ((n 0))
+                    (cond
+                     ((>= n limit)
+                      (let ((return (eval-progn-body final-exprs)))
+                        (env-pop-elstkfrm! st)
+                        return
+                        ))
+                     (else
+                      (lens-set n obj =>sym-value!)
+                      (eval-progn-body body)
+                      )))))))
+             (else (eval-error "wrong type argument" "dotimes" limit #:expecting "integer"))
+             )))
+         (else (eval-error "wrong type argument" "dotimes" var #:expecting "symbol"))
+         ))))))
 
 
 (define elisp-setq
@@ -971,6 +1104,9 @@
 ;;--------------------------------------------------------------------------------------------------
 ;; Interface between Scheme and Elisp
 
+(define (elisp-null? val) (or (null? val) (not val)))
+
+
 (define (scheme->elisp val)
   (define (replace val)
     (cond
@@ -1029,24 +1165,35 @@
   (lambda args (scheme->elisp (apply proc (map elisp->scheme args))))
   )
 
+(define (pure*-typed sym type-sym type-ok? proc)
+  (lambda args
+    (let ((args (map scheme->elisp args)))
+      (let loop ((checking args))
+        (match checking
+          (() (scheme->elisp (apply proc args)))
+          ((,arg ,checking ...)
+           (if (type-ok? arg)
+               (loop checking)
+               (eval-error "wrong type argument" sym arg #:expecting type-sym))
+           ))))))
+
+(define (pure*-numbers sym proc)
+  (pure*-typed sym "number" number? proc))
 
 (define (pure n sym proc)
   ;; Like `PURE*`, but construct a procedure that takes exactly N+1
   ;; arguments and applies them all (except the first argument, which
   ;; is a reference to the environment) to `PROC`.
-  (lambda (args)
-    (let loop ((a args) (count n))
+  (lambda args
+    (let ((count (length args)))
       (cond
-       ((and (= n 0) (null? a))
-        (apply proc (map scheme->elisp args)))
-       ((and (> n 0) (null? a))
-        (eval-error "not enough arguments" sym n args))
-       ((and (<= n 0) (pair? a))
-        (eval-error "too many arguments" sym n args))
-       (else
-        (eval-error "wrong number of arguments" sym n args)
-        ))
-      )))
+       ((> count n) (eval-error "not enough arguments" sym n args))
+       ((< count n) (eval-error "too many arguments" sym n args))
+       (else (scheme->elisp (apply proc (map scheme->elisp args))))
+       ))))
+
+(define (1+ n) (+ n 1))
+(define (1- n) (- n 1))
 
 ;;--------------------------------------------------------------------------------------------------
 ;; Built-in functions
@@ -1217,14 +1364,40 @@
      (nil . ,nil)
      (t   . ,t)
 
-     (+ . ,(pure* +))
-     (- . ,(pure* -))
-     (* . ,(pure* *))
+     (progn    . ,elisp-progn)
+     (prog1    . ,elisp-prog1)
+     (prog2    . ,elisp-prog2)
+     (setq     . ,elisp-setq)
+     (let      . ,elisp-let)
+     (let*     . ,elisp-let*)
 
-     (cons    . ,(pure 2 'cons cons))
-     (car     . ,(pure 1 'car car))
-     (cdr     . ,(pure 1 'cdr cdr))
-     (list    . ,elisp-list)
+     (cond     . ,elisp-cond)
+     (if       . ,elisp-if)
+     (or       . ,elisp-or)
+     (and      . ,elisp-and)
+     (while    . ,elisp-while)
+     (dotimes  . ,elisp-dotimes)
+
+     (eq     . ,(pure 2 "eq" eq?))
+     (equal  . ,(pure 2 "equal" equal?))
+     (concat . ,(pure* string-append))
+
+     (1+ . ,(pure 1 "1+" 1+))
+     (1- . ,(pure 1 "1-" 1-))
+     (+  . ,(pure*-numbers "+" +))
+     (-  . ,(pure*-numbers "-" -))
+     (*  . ,(pure*-numbers "*" *))
+     (=  . ,(pure*-numbers "=" =))
+     (<  . ,(pure*-numbers "<" <))
+     (<= . ,(pure*-numbers "<=" <=))
+     (>  . ,(pure*-numbers ">" >))
+     (>= . ,(pure*-numbers ">=" >=))
+
+     (cons  . ,(pure 2 'cons cons))
+     (car   . ,(pure 1 'car car))
+     (cdr   . ,(pure 1 'cdr cdr))
+     (list  . ,elisp-list)
+     (null  . ,(pure 1 "null" elisp-null?))
 
      (quote     . ,elisp-quote)
      (backquote . ,elisp-backquote)
@@ -1240,11 +1413,6 @@
      (macroexpand     . ,elisp-macroexpand)
      (macroexpand-1   . ,elisp-macroexpand-1)
      (macroexpand-all . ,elisp-macroexpand-all)
-
-     (progn    . ,elisp-progn)
-     (setq     . ,elisp-setq)
-     (let      . ,elisp-let)
-     (let*     . ,elisp-let*)
 
      ;; ------- end of assocaition list -------
      )))

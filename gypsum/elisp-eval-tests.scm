@@ -191,11 +191,67 @@
 
 (test-eqv 3 (test-elisp-eval! '(+ 1 2)))
 
+(test-eq #t (test-elisp-eval! '(eq nil nil)))
+
+(test-eq '() (test-elisp-eval! '(eq nil t)))
+
+(test-eq #t (test-elisp-eval! '(eq 5 5)))
+
+(test-eq #t (test-elisp-eval! '(= 5 5 5)))
+
+(test-eq '() (test-elisp-eval! '(= 5 5 6)))
+
+(test-equal "wrong type argument"
+  (test-error-elisp-eval! '(= 5 "hello")))
+
+(test-equal "wrong type argument"
+  (test-error-elisp-eval! '(+ 5 "hello")))
+
+(test-equal '(1 2 3) (test-elisp-eval! '(list 1 2 (+ 1 2))))
+
+(test-eq #t (test-elisp-eval! '(equal (list 5) (list 5))))
+
+(test-eq '() (test-elisp-eval! '(equal (list 5) (list 5 6))))
+
 (test-eqv 2 (test-elisp-eval! '(progn 1 2)))
 
 (test-eqv 3 (test-elisp-eval! '(progn 1 2 (+ 1 2))))
 
 (test-eqv 4 (test-elisp-eval! '(progn (setq a 4) a)))
+
+(test-eqv 5 (test-elisp-eval! '(prog1 5 4 3 2 1)))
+
+(test-eqv 4 (test-elisp-eval! '(prog2 5 4 3 2 1)))
+
+(test-eqv 2 (test-elisp-eval! '(prog1 (+ 1 1) (+ 1 2) (+ 2 3))))
+
+(test-eqv 3 (test-elisp-eval! '(prog2 (+ 1 1) (+ 1 2) (+ 2 3))))
+
+(test-eq #t (test-elisp-eval! '(or nil nil nil t)))
+
+(test-eq #t (test-elisp-eval! '(or (= 1 1 1) nil nil)))
+
+(test-eq '() (test-elisp-eval! '(or nil nil nil (= 0 0 1))))
+
+(test-eq '() (test-elisp-eval! '(and nil nil nil t)))
+
+(test-eq '() (test-elisp-eval! '(and (= 1 1 1) nil nil)))
+
+(test-eq #t (test-elisp-eval! '(and t t t (= 0 0 0))))
+
+(test-eqv 10 (test-elisp-eval! '(if t 10 20)))
+
+(test-eqv 20 (test-elisp-eval! '(if (null t) 10 20)))
+
+(test-eqv 30 (test-elisp-eval! '(if (null t) 10 20 30)))
+
+(test-eqv 30
+  (test-elisp-eval!
+   '(cond (nil 10) (nil 20) (t 30) (t 40) (nil 50))))
+
+(test-eqv 30
+  (test-elisp-eval!
+   '(cond ((or nil nil) 10) ((and t nil) 20) ((or t nil) 30) (t 40))))
 
 (test-eqv 5
   (test-elisp-eval!
@@ -213,15 +269,30 @@
 (test-equal "wrong number of arguments, setq"
   (test-error-elisp-eval! '(setq a)))
 
-(test-equal '(1 2 3) (test-elisp-eval! '(list 1 2 (+ 1 2))))
-
 (test-eqv 13
   (test-elisp-eval!
-   '(let*((a 5) (b 8)) (+ a b))))
+   '(let ((a 5) (b 8)) (+ a b))))
 
 (test-eqv 21
   (test-elisp-eval!
    '(let*((a 8) (b (+ 5 a))) (+ a b))))
+
+(test-eqv 34
+  (test-elisp-eval!
+   '(let ((a 21))
+      (setq a (+ a 13))
+      a)))
+
+(test-equal '(89 55)
+  (test-elisp-eval!
+   '(progn
+     (setq a 21)
+     (list
+      (let ((b 34))
+        (setq a (+ a b))
+        (setq b (+ a b))
+        b)
+      a))))
 
 (test-eq '() (test-elisp-eval! '(setq)))
 
@@ -281,6 +352,21 @@
      (setq a 13 b 21)
      (macroexpand '(mac1 a b))
      )))
+
+(test-eqv 45
+  (test-elisp-eval!
+   '(let ((sum 0) (i 0))
+      (while (< i 10)
+        (setq sum (+ sum i))
+        (setq i (1+ i)))
+      sum)))
+
+(test-eqv 55
+  (test-elisp-eval!
+   '(let ((sum 0))
+      (dotimes (n 11 sum)
+        (setq sum (+ sum n))
+        nil))))
 
 ;;--------------------------------------------------------------------------------------------------
 

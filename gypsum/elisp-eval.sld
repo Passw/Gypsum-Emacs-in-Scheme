@@ -54,7 +54,7 @@
    elisp-quote-scheme  elisp-unquote-scheme
 
    ;; Converting data between Scheme and Elisp
-   scheme->elisp  elisp->scheme  pure  pure*
+   scheme->elisp  elisp->scheme  elisp-null?  pure  pure*
 
    ;; Emacs Lisp constant symbols
    nil t
