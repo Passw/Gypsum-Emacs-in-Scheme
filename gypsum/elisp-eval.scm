@@ -659,7 +659,8 @@
 
 (define (eval-apply-lambda func arg-exprs)
   ;; This is how Emacs Lisp-defined lambdas and functions are applied
-  ;; from within Emacs Lisp.
+  ;; from within Emacs Lisp. This procedure *DOES NOT* do macro
+  ;; expansion regardless of the `LAMBDA-KIND` of the `FUNC` argument.
   (eval-apply-proc
    (lambda args
      (let*((elstkfrm (elstkfrm-from-args func args))
@@ -667,11 +668,7 @@
            (old-stack (env-lexstack st))
            (st (lens-set (list elstkfrm) st =>env-lexstack*!))
            (return (eval-progn-body (lambda-body func))) ;; apply
-           (return ;; macro expand (if its a macro)
-            (cond
-             ((eq? 'macro (lambda-kind func)) (eval-form return))
-             (else return)
-             )))
+           )
        (lens-set old-stack st =>env-lexstack*!)
        return
        ))
@@ -679,12 +676,21 @@
 
 
 (define (eval-bracketed-form head arg-exprs)
-  ;; This is the actual `APPLY` procedure for Emacs Lisp.
+  ;; This is the actual `APPLY` procedure for Emacs Lisp. The `HEAD`
+  ;; argument is resolved to a procedure, macro, command, or lambda.
+  ;; If `HEAD` resolves to a lambda, and `LAMBDA-KIND` is `'MACRO`,
+  ;; the macro is expanded by evaluating the result with `eval-form`
+  ;; before a value is returned.
   (let ((func (env-resolve-function (*the-environment*) head))
         )
     (cond
      ((macro-type?   func) (apply (macro-procedure func) head arg-exprs))
-     ((lambda-type?  func) (eval-apply-lambda func arg-exprs))
+     ((lambda-type?  func)
+      (let ((return (eval-apply-lambda func arg-exprs)))
+        (cond ;; macro expand (if its a macro)
+         ((eq? 'macro (lambda-kind func)) (eval-form return))
+         (else return)
+         )))
      ((command-type? func) (eval-apply-proc (command-procedure func) arg-exprs))
      ((procedure?    func) (eval-apply-proc func arg-exprs))
      (else (eval-error "invalid function" head))
@@ -1146,6 +1152,58 @@
        (,any (eval-error "wrong number of arguments" "backquote" any))
        ))))
 
+
+(define *macroexpand-max-depth* 16)
+
+(define (eval-macroexpander all depth fail-depth)
+  (case-lambda
+    ((expr) ((eval-macroexpander all depth fail-depth) expr (*the-environment*)))
+    ((expr st)
+     (let loop ((depth depth) (expr expr))
+       (match expr
+         (() '())
+         ((,label ,args ...)
+          (let ((args
+                 (if all
+                     (map (lambda (expr) (loop depth expr)) args)
+                     args)))
+            (cond
+             ((symbol? label)
+              (let ((func (env-resolve-function st label)))
+                (cond
+                 ((and (lambda-type? func)
+                       (eq? 'macro (lambda-kind func)))
+                  (let ((result (eval-apply-lambda func args)))
+                    (if (> depth 0)
+                        (loop (- depth 1) result)
+                        (if fail-depth
+                            (eval-error "macro expansion exceeds recursion limit" label args)
+                            result
+                            ))))
+                 (else (cons label args))
+                 )))
+             (else (cons label args)))))
+         (,any any)
+         )))))
+
+(define (elisp-macroexpander all depth fail-depth)
+  (lambda expr
+    (match expr
+      ((,expr) ((eval-macroexpander all depth fail-depth) expr))
+      ((,expr ,env) ((eval-macroexpander all depth fail-depth) expr env))
+      (,any (eval-error "wrong number of arguments" "macroexpand" any))
+      )))
+
+(define elisp-macroexpand
+  (elisp-macroexpander #f *macroexpand-max-depth* #t))
+
+(define elisp-macroexpand-1
+  (elisp-macroexpander #f 1 #f))
+
+(define elisp-macroexpand-all
+  (elisp-macroexpander #t *macroexpand-max-depth* #t))
+
+
 (define *elisp-init-env*
   ;; A parameter containing the default Emacs Lisp evaluation
   ;; environment. This environment is an ordinary association list
@@ -1178,6 +1236,10 @@
      (defun    . ,elisp-defun-defmacro)
      (defmacro . ,elisp-defun-defmacro)
      (function . ,elisp-function)
+
+     (macroexpand     . ,elisp-macroexpand)
+     (macroexpand-1   . ,elisp-macroexpand-1)
+     (macroexpand-all . ,elisp-macroexpand-all)
 
      (progn    . ,elisp-progn)
      (setq     . ,elisp-setq)

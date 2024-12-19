@@ -240,7 +240,6 @@
 (test-equal '((+ 3 5) = 8)
   (test-elisp-eval! '(backquote ((+ ,(+ 1 2) ,(+ 2 3)) = ,(+ 1 2 2 3)))))
 
-
 (test-assert
   (let ((func (test-elisp-eval! '(lambda () nil))))
     (and
@@ -267,6 +266,21 @@
      (f 2 3)
      )))
 
+
+(test-equal '(13 + 21 = 34)
+  (test-elisp-eval!
+   '(progn
+     (setq a 13 b 21)
+     (defmacro mac1 (a b) `(list ,a '+ ,b '= ,(+ a b)))
+     (mac1 a b))
+   ))
+
+(test-equal '(list 13 '+ 21 '= 34)
+  (test-elisp-eval!
+   '(progn
+     (setq a 13 b 21)
+     (macroexpand '(mac1 a b))
+     )))
 
 ;;--------------------------------------------------------------------------------------------------
 
