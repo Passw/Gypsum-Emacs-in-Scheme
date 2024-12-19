@@ -5,3 +5,4 @@
 (load "gypsum/keymap-tests.scm")
 (load "gypsum/concurrent-tests.scm")
 (load "gypsum/cursor-tests.scm")
+(load "gypsum/elisp-eval.scm")
