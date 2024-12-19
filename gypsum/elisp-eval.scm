@@ -871,8 +871,8 @@
 (define elisp-defun-defmacro
   (make<macro>
    (lambda expr
-     (let*((expr (cdr expr))
-           (def  (car expr))
+     (let ((def  (car expr))
+           (expr (cdr expr))
            )
        (match expr
          (() (eval-error "wrong number of arguments" '()))
@@ -885,7 +885,11 @@
                   (=>name (=>env-obarray-key! name))
                   (st     (*the-environment*))
                   (obj    (view st =>name))
-                  (obj    (if obj obj (lens-set! (new-symbol name) st =>name)))
+                  (obj
+                   (if obj obj
+                       (let ((obj (new-symbol name)))
+                         (lens-set! obj st =>name)
+                         obj)))
                   )
               (cond
                ((eq? def 'defun) func)

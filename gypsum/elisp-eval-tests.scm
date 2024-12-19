@@ -174,6 +174,102 @@
 
 ;;--------------------------------------------------------------------------------------------------
 
+;; Raw results of evaluation
+(define (test-elisp-reset-env!)
+  (set! test-elisp-env (new-environment (*elisp-init-env*))))
+
+(define (test-elisp-eval! expr)
+  (elisp-eval! expr test-elisp-env))
+
+(define (test-error-elisp-eval! expr)
+  (let ((result (test-elisp-eval! expr)))
+    (and (elisp-eval-error-type? result)
+         (view result =>elisp-eval-error-message))))
+
+
+(test-equal "hello" (test-elisp-eval! "hello"))
+
+(test-eqv 3 (test-elisp-eval! '(+ 1 2)))
+
+(test-eqv 2 (test-elisp-eval! '(progn 1 2)))
+
+(test-eqv 3 (test-elisp-eval! '(progn 1 2 (+ 1 2))))
+
+(test-eqv 4 (test-elisp-eval! '(progn (setq a 4) a)))
+
+(test-eqv 5
+  (test-elisp-eval!
+   '(progn
+     (setq a 2 b 3)
+     (+ a b)
+     )))
+
+(test-eqv 8
+  (test-elisp-eval!
+   '(progn
+     (setq a 3 b 5 c (+ a b))
+     c)))
+
+(test-equal "wrong number of arguments, setq"
+  (test-error-elisp-eval! '(setq a)))
+
+(test-equal '(1 2 3) (test-elisp-eval! '(list 1 2 (+ 1 2))))
+
+(test-eqv 13
+  (test-elisp-eval!
+   '(let*((a 5) (b 8)) (+ a b))))
+
+(test-eqv 21
+  (test-elisp-eval!
+   '(let*((a 8) (b (+ 5 a))) (+ a b))))
+
+(test-eq '() (test-elisp-eval! '(setq)))
+
+(test-equal '() (test-elisp-eval! '(quote ())))
+
+(test-equal '(1 2 3) (test-elisp-eval! '(quote (1 2 3))))
+
+(test-equal '(1 2 3) (test-elisp-eval! '(backquote (1 2 (|,| (+ 1 2))))))
+
+(test-equal '() (test-elisp-eval! '(backquote ())))
+
+(test-equal '(1 2 3) (test-elisp-eval! '(|`| (1 2 (|,| (+ 1 2))))))
+
+(test-equal '(1 2 3) (apply test-elisp-eval! '(`(1 2 ,(+ 1 2)))))
+
+(test-equal '((+ 3 5) = 8)
+  (test-elisp-eval! '(backquote ((+ ,(+ 1 2) ,(+ 2 3)) = ,(+ 1 2 2 3)))))
+
+
+(test-assert
+  (let ((func (test-elisp-eval! '(lambda () nil))))
+    (and
+     (null? (view func =>lambda-args!))
+     (null? (view func =>lambda-optargs!))
+     (not (view func =>lambda-rest!))
+     (equal? '(nil) (view func =>lambda-body!)))
+    ))
+
+(test-equal '(1 + 2 = 3)
+  (test-elisp-eval!
+   '(progn
+     (setq a 3 b 5)
+     (apply
+      (lambda (a b)
+        (list a '+ b '= (+ a b)))
+      '(1 2)))))
+
+(test-equal '(2 + 3 = 5)
+  (test-elisp-eval!
+   '(progn
+     (setq a 5 b 8)
+     (defun f (a b) (list a '+ b '= (+ a b)))
+     (f 2 3)
+     )))
+
+
+;;--------------------------------------------------------------------------------------------------
+
 (define test-elisp-progn-var-scope-test
   '(progn
      (message "------------------------------")
@@ -266,92 +362,6 @@ fn-B: glo = top
 top: glo = top
 ------------------------------
 ")
-
-
-;; Raw results of evaluation
-(define (test-elisp-reset-env!)
-  (set! test-elisp-env (new-environment (*elisp-init-env*))))
-
-(define (test-elisp-eval! expr)
-  (elisp-eval! expr test-elisp-env))
-
-(define (test-error-elisp-eval! expr)
-  (let ((result (test-elisp-eval! expr)))
-    (and (elisp-eval-error-type? result)
-         (view result =>elisp-eval-error-message))))
-
-
-(test-equal "hello" (test-elisp-eval! "hello"))
-
-(test-eqv 3 (test-elisp-eval! '(+ 1 2)))
-
-(test-eqv 2 (test-elisp-eval! '(progn 1 2)))
-
-(test-eqv 3 (test-elisp-eval! '(progn 1 2 (+ 1 2))))
-
-(test-eqv 4 (test-elisp-eval! '(progn (setq a 4) a)))
-
-(test-eqv 5
-  (test-elisp-eval!
-   '(progn
-     (setq a 2 b 3)
-     (+ a b)
-     )))
-
-(test-eqv 8
-  (test-elisp-eval!
-   '(progn
-     (setq a 3 b 5 c (+ a b))
-     c)))
-
-(test-equal "wrong number of arguments, setq"
-  (test-error-elisp-eval! '(setq a)))
-
-(test-equal '(1 2 3) (test-elisp-eval! '(list 1 2 (+ 1 2))))
-
-(test-eqv 13
-  (test-elisp-eval!
-   '(let*((a 5) (b 8)) (+ a b))))
-
-(test-eqv 21
-  (test-elisp-eval!
-   '(let*((a 8) (b (+ 5 a))) (+ a b))))
-
-(test-eq '() (test-elisp-eval! '(setq)))
-
-(test-equal '() (test-elisp-eval! '(quote ())))
-
-(test-equal '(1 2 3) (test-elisp-eval! '(quote (1 2 3))))
-
-(test-equal '(1 2 3) (test-elisp-eval! '(backquote (1 2 (|,| (+ 1 2))))))
-
-(test-equal '() (test-elisp-eval! '(backquote ())))
-
-(test-equal '(1 2 3) (test-elisp-eval! '(|`| (1 2 (|,| (+ 1 2))))))
-
-(test-equal '(1 2 3) (apply test-elisp-eval! '(`(1 2 ,(+ 1 2)))))
-
-(test-equal '((+ 3 5) = 8)
-  (test-elisp-eval! '(backquote ((+ ,(+ 1 2) ,(+ 2 3)) = ,(+ 1 2 2 3)))))
-
-
-(test-assert
-  (let ((func (test-elisp-eval! '(lambda () nil))))
-    (and
-     (null? (view func =>lambda-args!))
-     (null? (view func =>lambda-optargs!))
-     (not (view func =>lambda-rest!))
-     (equal? '(nil) (view func =>lambda-body!)))
-    ))
-
-(test-equal '(1 + 2 = 3)
-  (test-elisp-eval!
-   '(progn
-     (setq a 3 b 5)
-     (apply
-      (lambda (a b)
-        (list a '+ b '= (+ a b)))
-      '(1 2)))))
 
 ;;--------------------------------------------------------------------------------------------------
 
