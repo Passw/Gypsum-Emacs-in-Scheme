@@ -24,6 +24,7 @@ code.
 
 - [`(gypsum pretty)`](../../../wiki/PrettyPrinter.md): a pretty printer
 - [`(gypsum cursor)`](../../../wiki/Cursor.md): an iterator-like object
+- [`(rapid match)`](../../../wiki/RapidMatch.md): a tiny, portable pattern matcher
 
 ## How to build
 
@@ -183,3 +184,6 @@ interest in both the Emacs and Scheme communities for an Emacs clone
 written in Scheme. Our job is to coordinate everyone's efforts, and to
 make it as easy as possible for anyone to contribute. Please feel free
 to get in touch with us, we want to help you contribute code.
+
+If you would like some ideas on how to contribute, a good place to
+start is to read our [**feature wish list**](../../../wiki/WishList.md) document.
