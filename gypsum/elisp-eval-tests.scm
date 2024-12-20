@@ -368,6 +368,13 @@
         (setq sum (+ sum n))
         nil))))
 
+(test-eqv (+ 1 1 2 3 5 8 13 21 34)
+  (test-elisp-eval!
+   '(let ((sum 0))
+      (dolist (n '(1 1 2 3 5 8 13 21 34) sum)
+        (setq sum (+ n sum))
+        nil))))
+
 ;;--------------------------------------------------------------------------------------------------
 
 (define test-elisp-progn-var-scope-test

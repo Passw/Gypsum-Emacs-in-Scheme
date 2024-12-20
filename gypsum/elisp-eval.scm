@@ -884,6 +884,55 @@
          ))))))
 
 
+(define elisp-dolist
+  (make<macro>
+   (lambda exprs
+     (define (fail-nargs n)
+       (eval-error "wrong number of arguments" "dolist" n))
+     (define (run var list-expr result-expr body)
+       (define (final) (if result-expr (eval-form result-expr) '()))
+       (cond
+        ((symbol? var)
+         (let*((elems (eval-form list-expr)))
+           (cond
+            ((or (null? elems)
+                 (and (vector? elems)
+                      (>= 0 (vector-length elems))))
+             (final)
+             )
+            ((or (pair? elems)
+                 (and (vector? elems)
+                      (< 0 (vector-length elems))))
+             (let*((cur (new-cursor elems))
+                   (st (*the-environment*))
+                   (elstkfrm (env-push-new-elstkfrm! st 1 '()))
+                   (obj (elstkfrm-sym-intern! elstkfrm (symbol->string var) 0))
+                   )
+               (let loop ()
+                 (cond
+                  ((cursor-end? cur)
+                   (env-pop-elstkfrm! st)
+                   (final))
+                  (else
+                   (lens-set (cursor-ref cur) obj =>sym-value!)
+                   (eval-progn-body body)
+                   (cursor-step! cur)
+                   (loop)
+                   )))))
+            (else
+             (eval-error "wrong type argument" "dotimes" elems #:expecting "list")
+             ))))
+        (else (eval-error "wrong type argument" "dotimes" var #:expecting "symbol")))
+       )
+     (match (cdr exprs)
+       (((,var ,list-expr) ,body ...)
+        (run var list-expr #f body))
+       (((,var ,list-expr ,result-expr) ,body ...)
+        (run var list-expr result-expr body))
+       (,any (eval-error "wrong number of arguments" "dolist" any))
+       ))))
+
+
 (define elisp-setq
   (make<macro>
    (lambda  args
@@ -1378,6 +1427,7 @@
      (and      . ,elisp-and)
      (while    . ,elisp-while)
      (dotimes  . ,elisp-dotimes)
+     (dolist   . ,elisp-dolist)
 
      (eq     . ,(pure 2 "eq" eq?))
      (equal  . ,(pure 2 "equal" equal?))
