@@ -876,6 +876,7 @@
                      (else
                       (lens-set n obj =>sym-value!)
                       (eval-progn-body body)
+                      (loop (+ n 1))
                       )))))))
              (else (eval-error "wrong type argument" "dotimes" limit #:expecting "integer"))
              )))
