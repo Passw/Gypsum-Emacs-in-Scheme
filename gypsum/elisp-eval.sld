@@ -43,6 +43,7 @@
              hash-table-set!
              hash-table-delete!
              hash-table-ref/default
+             hash-table-walk
              string-hash)
        (only (srfi srfi-13)
              string-hash)

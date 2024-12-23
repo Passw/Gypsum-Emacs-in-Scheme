@@ -29,8 +29,8 @@
   (plist  sym-plist     set!sym-plist)
   )
 
-(define nil (make<sym> "nil" '() #f #f))
-(define t   (make<sym> "t"   #t  #f #f))
+(define nil (make<sym> "nil" '() #f '()))
+(define t   (make<sym> "t"   #t  #f '()))
 
 
 (define =>sym-name
@@ -61,7 +61,7 @@
     ((name val) (new-symbol name val #f))
     ((name val func)
      (cond
-      ((string? name) (make<sym> name val func #f))
+      ((string? name) (make<sym> name val func '()))
       (else (error "not a string" name))))))
 
 
@@ -74,13 +74,28 @@
            (sym-plist sym)))
   )
 
-(define (canon-sym unit) (=>canonical unit (new-symbol "") blank-symbol?))
+(define (canon-sym name =>lens label)
+  (unit-lens
+   (lambda (sym) (if sym (view sym =>lens) #f))
+   (lambda (sym val) (lens-set val (if sym sym (new-symbol name)) =>lens))
+   (lambda (upd sym) (update&view upd (if sym sym (new-symbol name)) =>lens))
+   label))
 
-(define =>sym-value! (canon-sym =>sym-value*!))
-(define =>sym-function! (canon-sym =>sym-function*!))
-(define =>sym-plist! (canon-sym =>sym-plist*!))
+(define (=>sym-value!    name) (canon-sym name =>sym-value*!    '=>sym-value!))
+(define (=>sym-function! name) (canon-sym name =>sym-function*! '=>sym-function!))
+(define (=>sym-plist!    name) (canon-sym name =>sym-plist*!    '=>sym-plist!))
 
-;;--------------------------------------------------------------------()
+(define (symbol/string? o) (or (symbol? o) (sym-type? o) (string? o)))
+(define (any-symbol? o) (or (symbol? o) (sym-type? o)))
+
+(define (ensure-string name)
+  (cond
+   ((string? name) name)
+   ((symbol? name) (symbol->string name))
+   (else (error "not a symbol or string" name))
+   ))
+
+;;--------------------------------------------------------------------
 ;; Built-in Macro types
 
 (define-record-type <macro-type>
@@ -93,16 +108,17 @@
 ;; Lambdas of all kinds, including macros and built-ins
 
 (define-record-type <lambda-type>
-  (make<lambda> kind args optargs rest doc decls lexenv body)
+  (make<lambda> kind args optargs rest doc decls inter lexenv body)
   lambda-type?
-  (kind     lambda-kind      set!lambda-kind)
-  (args     lambda-args      set!lambda-args)
-  (optargs  lambda-optargs   set!lambda-optargs)
-  (rest     lambda-rest      set!lambda-rest)
-  (doc      lambda-docstring set!lambda-docstring)
-  (decls    lambda-declares  set!lambda-declares)
-  (lexenv   lambda-lexenv    set!lambda-lexenv)
-  (body     lambda-body      set!lambda-body)
+  (kind     lambda-kind         set!lambda-kind)
+  (args     lambda-args         set!lambda-args)
+  (optargs  lambda-optargs      set!lambda-optargs)
+  (rest     lambda-rest         set!lambda-rest)
+  (doc      lambda-docstring    set!lambda-docstring)
+  (decls    lambda-declares     set!lambda-declares)
+  (inter    lambda-interactive  set!lambda-interactive)
+  (lexenv   lambda-lexenv       set!lambda-lexenv)
+  (body     lambda-body         set!lambda-body)
   )
 
 (define =>lambda-kind*! (record-unit-lens lambda-kind set!lambda-kind '=>lambda-kind*!))
@@ -111,9 +127,9 @@
 (define =>lambda-rest*! (record-unit-lens lambda-rest set!lambda-rest '=>lambda-rest*!))
 (define =>lambda-docstring*! (record-unit-lens lambda-docstring set!lambda-docstring '=>lambda-docstring*!))
 (define =>lambda-declares*! (record-unit-lens lambda-declares set!lambda-declares '=>lambda-declares*!))
+(define =>lambda-interactive*! (record-unit-lens lambda-interactive  set!lambda-interactive '=>lambda-interactive*!))
 (define =>lambda-lexenv*! (record-unit-lens lambda-lexenv set!lambda-lexenv '=>lambda-lexenv*!))
 (define =>lambda-body*! (record-unit-lens lambda-body set!lambda-body '=>lambda-body*!))
-
 
 (define (empty-lambda? o)
   (not (or (lambda-kind o)      
@@ -130,7 +146,7 @@
 (define new-lambda
   (case-lambda
     (() (new-lambda 'lambda))
-    ((kind) (make<lambda> kind '() '() #f #f #f #f #f))
+    ((kind) (make<lambda> kind '() '() #f #f #f #f #f #f))
     ((kind args) (new-lambda kind args '() #f #f #f))
     ((kind args opts) (new-lambda kind args opts #f #f #f))
     ((kind args opts rest) (new-lambda kind args opts rest #f #f))
@@ -140,7 +156,7 @@
       (map ensure-string args)
       (map ensure-string opts)
       (if rest (ensure-string rest) #f)
-      docstr #f #f body))
+      docstr #f #f #f body))
     ))
 
 (define (canon-lambda unit) (=>canonical unit new-lambda empty-lambda?))
@@ -337,37 +353,6 @@
       (alist->hash-table assocs)))
     ))
 
-;;;;--------------------------------------------------------------------
-;;
-;;(define-record-type <elisp-env-eval-func-stack-elem-type>
-;;  (make<elisp-eval-func-stack-elem> func args locals)
-;;  elisp-eval-func-stack-elem-type?
-;;  (func   env-eval-stack-function   set!env-eval-stack-function)
-;;    ;; ^ the function to be evaluated
-;;  (args   env-eval-stack-func-args  set!env-eval-stack-func-args)
-;;    ;; ^ the arguments to be passed
-;;  (locals env-eval-stack-locals    set!env-eval-stack-locals)
-;;    ;; ^ the local variables from the previous function call
-;;  )
-;;
-;;(define =>env-eval-stack-function*!
-;;  (record-unit-lens
-;;   env-eval-stack-function
-;;   set!env-eval-stack-function
-;;   '=>env-eval-stack-function))
-;;
-;;(define =>env-eval-stack-func-args*!
-;;  (record-unit-lens
-;;   env-eval-stack-func-args
-;;   set!env-eval-stack-func-args
-;;   '=>env-eval-stack-func-args))
-;;
-;;(define =>env-eval-stack-locals*!
-;;  (record-unit-lens
-;;   env-eval-stack-locals
-;;   set!env-eval-stack-locals
-;;   '=>env-eval-stack-locals*!))
-
 ;;--------------------------------------------------------------------
 
 (define-record-type <elisp-environment-type>
@@ -394,7 +379,7 @@
 
 (define (=>env-obarray-key! name)
   (lens =>env-obarray*!
-        (=>canonical (=>hash-key*! name) new-empty-obarray hash-table-empty?)))
+        (=>canonical (=>hash-key! name) new-empty-obarray hash-table-empty?)))
 
 (define =>env-lexical-mode?!
   (record-unit-lens env-lxmode set!env-lxmode '=>env-lexical-mode?!))
@@ -448,6 +433,52 @@
       ))
 
 
+(define (env-sym-update updater st name)
+  (let-values
+      (((stack return)
+        (update&view updater
+         st =>env-lexstack*! (=>stack! name #f))
+        ))
+    (cond
+     ((not return)
+      (let-values
+          (((stack return)
+            (update&view updater
+             st =>env-dynstack*! (=>stack! name #f))
+            ))
+        (cond
+         ((not return)
+          (update&view updater st (=>env-obarray-key! name))
+          )
+         (else (values st (car return)))
+         )))
+     (else (values st (car return)))
+     )))
+
+
+(define (=>env-symbol! name)
+  ;; A lens that looks up a symbol in the lexical stack, dynamic
+  ;; stack, or global obarray, and if non exist, a new symbol may be
+  ;; interned into the global obarray if the next composed lens
+  ;; returns a non-empty symbol object.
+  (let ((getter (lambda (st) (env-sym-lookup st name)))
+        (updater
+         (lambda (updater st)
+           (env-sym-update
+            (lambda (updater obj)
+              (if (not obj)
+                  (updater (new-symbol name))
+                  (updater obj)))
+            st name)))
+        )
+    (unit-lens
+     getter
+     (default-unit-lens-setter updater)
+     updater
+     `(=>env-symbol ,name))
+    ))
+
+
 (define (env-dynstack-update updater st name newsym)
   ;; Part of the Elisp "SETQ" semantics. This procedure tries to
   ;; update just the dynamic variable stack. If there is no variable
@@ -494,14 +525,6 @@
   ;; `NAME` is bound anywhere, a new symbol is initerned in the global
   ;; obarray.
   (env-stack-update updater st name env-intern!))
-
-
-(define (ensure-string name)
-  (cond
-   ((string? name) name)
-   ((symbol? name) (symbol->string name))
-   (else (error "not a symbol or string" name))
-   ))
 
 
 (define (hash-env-intern-soft hash name)
@@ -660,7 +683,7 @@
         )))))
 
 
-(define (eval-apply-lambda func arg-exprs)
+(define (eval-apply-lambda func args)
   ;; This is how Emacs Lisp-defined lambdas and functions are applied
   ;; from within Emacs Lisp. This procedure *DOES NOT* do macro
   ;; expansion regardless of the `LAMBDA-KIND` of the `FUNC` argument.
@@ -675,7 +698,20 @@
        (lens-set old-stack st =>env-lexstack*!)
        return
        ))
-   arg-exprs))
+   args))
+
+
+(define (eval-apply-as-proc func)
+  ;; Wraps a Elisp lambda application into a scheme procedure application
+  (lambda args
+    (cond
+     ((lambda-type? func) (apply eval-apply-lambda func args))
+     ((procedure? func)
+      (scheme->elisp (apply func (map elisp->scheme args))))
+     ((command-type? func)
+      (scheme->elisp (apply (command-procedure func) (map elisp->scheme args))))
+     (else (eval-error "wrong type argument" func #:expecting "function"))
+     )))
 
 
 (define (eval-bracketed-form head arg-exprs)
@@ -874,7 +910,7 @@
                         return
                         ))
                      (else
-                      (lens-set n obj =>sym-value!)
+                      (lens-set n obj =>sym-value*!)
                       (eval-progn-body body)
                       (loop (+ n 1))
                       )))))))
@@ -914,7 +950,7 @@
                    (env-pop-elstkfrm! st)
                    (final))
                   (else
-                   (lens-set (cursor-ref cur) obj =>sym-value!)
+                   (lens-set (cursor-ref cur) obj =>sym-value*!)
                    (eval-progn-body body)
                    (cursor-step! cur)
                    (loop)
@@ -1096,6 +1132,39 @@
          )))))
 
 
+(define (set-function-body! func body-exprs)
+  ;; This procedure scans through a `BODY-EXPR` for `DECLARE` and
+  ;; `INTERACTIVE` forms and both executes them, updating the given
+  ;; `FUNC` in place, and also removes them from the `BODY-EXPRS` so
+  ;; that the evaluator never executes them directly.
+  (define (filter body-exprs)
+    (match body-exprs
+      (() '())
+      (((declare ,args ...) ,body-exprs ...)
+       (let loop ((args args))
+         (match args
+           (((,sym ,vals ...) ,args ...)
+            (guard (symbol? sym))
+            (lens-set vals
+             func =>lambda-declares*! (=>hash-key! (symbol->string sym)))
+            (loop args))
+           ((,any ,args ...) ;; ignore malformed delcarations
+            (loop args))
+           ))
+       (filter body-exprs)
+       )
+      (((interactive ,args ...) ,body-exprs ...)
+       (lens-set args func =>lambda-interactive*!)
+       (filter body-exprs)
+       )
+      ((,any-expr ,body-exprs ...) ;; anything else, leave it alone
+       (cons any-expr (filter body-exprs)))
+      ))
+  (lens-set (filter body-exprs) func =>lambda-body*!)
+  func
+  )
+
+
 (define (eval-defun-args-body kind arg-exprs body-expr)
   (define (non-symbol-error sym)
     (eval-error "invalid function, arguments declaration expect symbol" sym)
@@ -1106,13 +1175,13 @@
        (cond
         ((string? docstr)
          (set!lambda-docstring func docstr)
-         (set!lambda-body func body-expr)
+         (set-function-body! func body-expr)
          func)
         (else
-         (set!lambda-body func (cons docstr body-expr))
+         (set-function-body! func (cons docstr body-expr))
          func)))
       (,body-expr
-       (set!lambda-body func body-expr)
+       (set-function-body! func body-expr)
        func)
       ))
   (define (get-rest-args arg-exprs args optargs)
@@ -1152,10 +1221,139 @@
   (get-args arg-exprs '()))
 
 ;;--------------------------------------------------------------------------------------------------
+;; Procedures that operate on procedures. These are called by the
+;; evaluator after pattern matching determines that the correct number
+;; and type of arguments have been supplied.
+
+(define (view-on-symbol st name/sym viewer)
+  (cond
+   ((sym-type? name/sym) (viewer name/sym))
+   ((symbol/string? name/sym)
+    (view st (=>env-obarray-key! (symbol->string name/sym))))
+   (else (eval-error "wrong type argument" name/sym #:expecting "symbol"))
+   ))
+
+(define (update-on-symbol st name/sym updater)
+  ;; A procedure that operates on a symbol given it's name or the
+  ;; `<SYM-TYPE>` object itself.
+  (cond
+   ((sym-type? name/sym)
+    (let-values
+        (((obj return) (updater name/sym)))
+      return
+      ))
+   ((symbol/string? name/sym)
+    (update&view
+     updater st
+     (=>env-obarray-key! (symbol->string name/sym))))
+   ))
+
+(define (eval-make-symbol name) (new-symbol (ensure-string name)))
+
+(define (eval-symbol-name st sym)
+  (view-on-symbol st sym (lambda (obj) (view obj =>sym-name))))
+
+(define (eval-intern st name)
+  (let-values
+      (((obj _)
+        (env-intern! (lambda (obj) (values obj obj)) st (ensure-string name))))
+    obj
+    ))
+
+(define (eval-intern-soft st name)
+  (view-on-symbol st name (lambda (obj) obj)))
+
+(define (eval-unintern st name)
+  (update&view
+   (lambda (obj) (if (not obj) (values #f #f) (values #f #t)))
+   (=>env-obarray-key! name)
+   ))
+
+(define eval-mapatoms
+  (case-lambda
+    ((func) (eval-mapatoms func (*the-environment*)))
+    ((func st)
+     (let ((hash (view st =>env-obarray*!)))
+       (cond
+        ((hash-table? hash)
+         (hash-table-walk hash (lambda (_key obj) (func obj)))
+         #f)
+        (else #f)
+        )))))
+
+(define (eval-symbol-plist st sym)
+  (update-on-symbol st sym (lambda (obj) (view obj (=>sym-plist! sym)))))
+
+(define (plist-to-dict plist)
+  (define (filter plist)
+    (cond
+     ((null? plist) '())
+     ((pair? plist)
+      (let*((assoc (car plist))
+            (name (car assoc))
+            (name (if (symbol? name) (symbol->string name) name))
+            (val (cdr assoc))
+            (next (lambda () (filter (cdr plist))))
+            )
+        (cond
+         ((string? name) (cons (cons name val) (next)))
+         (else (next))
+         )))
+     (else '())))
+  (cond
+   ((hash-table? plist) plist)
+   ((pair? plist) (alist->hash-table (filter plist)))
+   (else #f)
+   ))
+
+(define (eval-setplist st name plist)
+  ;; Unlike Elisp, the type of `PLIST` is checked and a hash table is
+  ;; constructed. Non-alist or non-hash-table values are silently
+  ;; ignored.
+  (let*((plist (plist-to-dict plist)))
+    (when plist
+      (update-on-symbol st name (lambda (obj) (lens-set plist obj (=>sym-plist! name)))))
+    plist
+    ))
+
+(define (eval-set st sym val)
+  ;; TODO: check if `SYM` satisfies `SYMBOL?` or `SYM-TYPE?` and act accordingly.
+  (update-on-symbol st sym
+   (lambda (obj) (values (lens-set val obj (=>sym-value! sym)) val))))
+
+(define (eval-get st sym prop)
+  (view-on-symbol st sym (lambda (obj) (view obj (=>hash-key! prop)))))
+
+(define (eval-put st sym prop val)
+  (update-on-symbol st sym
+   (let ((prop (ensure-string prop)))
+     (values (lens-set val st (=>env-obarray-key! sym) (=>hash-key! prop)) val)
+     )))
+
+(define (eval-boundp st sym)
+  (view-on-symbol st sym (lambda (obj) (not (not (view obj (=>sym-value! sym)))))))
+
+(define (eval-makunbound st sym)
+  (update-on-symbol st sym
+   (lambda (obj) (values (lens-set #f obj (=>sym-value! sym)) obj))))
+
+(define (eval-symbol-function st sym)
+  (view-on-symbol st sym (lambda (obj) (view obj (=>sym-function! sym)))))
+
+(define (eval-fboundp st sym)
+  (not (not (eval-symbol-function st sym))))
+
+(define (eval-fset st sym func)
+  (update-on-symbol st sym
+   (lambda (obj) (values (lens-set (elisp->scheme func) obj =>sym-function!) func))))
+
+(define (eval-fmakunbound st sym)
+  (view-on-symbol st sym (lambda (obj) (view st (=>env-obarray-key! sym)))))
+
+;;--------------------------------------------------------------------------------------------------
 ;; Interface between Scheme and Elisp
 
 (define (elisp-null? val) (or (null? val) (not val)))
-
 
 (define (scheme->elisp val)
   (define (replace val)
@@ -1204,6 +1402,16 @@
      )))
 
 
+(define elisp-void-macro
+  ;; Some symbols like `DECLARE` and `INTERACTIVE` are specially
+  ;; handled by the evaluator, they are usually caught by the pattern
+  ;; matcher and evaluated during parsing. If an end user enters these
+  ;; symbols into a REPL, they would result in an "void variable"
+  ;; execption. To prevent exceptions of this nature, these symbols
+  ;; are bound to this void macro.
+  (make<macro> (lambda args '())))
+
+
 (define (pure* proc)
   ;; Construct a procedure that always ignores it's first
   ;; argument. This is becuase whenever a built-in functions is
@@ -1248,7 +1456,7 @@
 ;;--------------------------------------------------------------------------------------------------
 ;; Built-in functions
 
-(define (eval-elisp-apply collect args)
+(define (eval-apply collect args)
   (match args
     (() (eval-error "wrong number of arguments" args))
     ((,func ,args ...) (eval-bracketed-form func (collect args)))))
@@ -1262,9 +1470,9 @@
     ((,arg ,args ...) (cons arg (re-collect-args args)))
     ))
 
-(define (elisp-funcall . args) (eval-elisp-apply (lambda (id) id) args))
+(define (elisp-funcall . args) (eval-apply (lambda (id) id) args))
 
-(define (elisp-apply . args) (eval-elisp-apply re-collect-args args))
+(define (elisp-apply . args) (eval-apply re-collect-args args))
 
 (define elisp-function
   (make<macro>
@@ -1289,6 +1497,118 @@
             ))))
        (,any (eval-error "wrong number of arguments" "function" #:expecting 1 #:value any))
        ))))
+
+
+(define (elisp-symbol-op name type? op)
+  (lambda args
+    (match args
+      ((,sym) (guard (type? sym))
+       (scheme->elisp (op (*the-environment*) sym)))
+      ((,sym)
+       (eval-error
+        "wrong type argument" name
+        sym #:expecting "symbol"))
+      (,any
+       (eval-error
+        "wrong number of arguments" name
+        (length any) #:expecting 1))
+      )))
+
+(define (elisp-symbol-op2 name type? op)
+  (lambda args
+    (match args
+      ((,sym ,val)
+       (guard (type? sym))
+       (scheme->elisp (op (*the-environment*) sym (scheme->elisp val)))
+       )
+      ((,sym ,val)
+       (eval-error
+        "wrong type argument" name
+        sym #:expecting "symbol")
+       )
+      (,any
+       (eval-error
+        "wrong number of arguments" name
+        (length any) #:expecting 2)
+       ))))
+
+(define (elisp-make-symbol . args)
+  (match args
+    ((,name)
+     (guard (symbol/string? name))
+     (eval-make-symbol (ensure-string name)))
+    ((,name)
+     (eval-error "wrong type argument" name #:expecting "symbol or string"))
+    (,any (eval-error "wrong number of arguments" (length any) #:expecting 1))
+    ))
+
+(define elisp-symbol-name
+  (elisp-symbol-op "symbol-name" any-symbol? eval-symbol-name))
+
+(define elisp-boundp
+  (elisp-symbol-op "unboundp" any-symbol? eval-boundp))
+
+(define elisp-makunbound
+  (elisp-symbol-op "makunbound" any-symbol? eval-makunbound))
+
+(define elisp-intern
+  (elisp-symbol-op "intern" symbol/string? eval-intern))
+
+(define elisp-intern-soft
+  (elisp-symbol-op "intern-soft" symbol/string? eval-intern-soft))
+
+(define elisp-unintern
+  (elisp-symbol-op "unintern" symbol/string? eval-unintern))
+
+(define (elisp-mapatoms . args)
+  (match args
+    ((,func) (eval-mapatoms (eval-apply-as-proc func)))
+    ((,func ,obarray)
+     (eval-mapatoms (eval-apply-as-proc func) obarray))
+    ((,any ...)
+     (eval-error "wrong number of arguments" "mapatoms" (length any)))
+    ))
+
+(define elisp-symbol-plist
+  (elisp-symbol-op "symbol-plist" any-symbol? eval-symbol-plist))
+
+(define elisp-setplist
+  (elisp-symbol-op2 "setplist" any-symbol? eval-setplist))
+
+(define elisp-set
+  (elisp-symbol-op2 "set" any-symbol? eval-set))
+
+(define elisp-get
+  (elisp-symbol-op2 "get" symbol? eval-get))
+
+(define (elisp-put . args)
+  (match args
+    ((,sym ,prop ,val)
+     (guard (symbol? sym))
+     (if (symbol? prop)
+         (eval-put
+          (*the-environment*)
+          (symbol->string sym)
+          (symbol->string prop)
+          val)
+         val))
+    (,args
+     (eval-error
+      "wrong number of arguments" "put"
+      (length args) #:expecting 3))
+    ))
+
+(define elisp-symbol-function
+  (elisp-symbol-op "symbol-function" symbol? eval-symbol-function))
+
+(define elisp-fboundp
+  (elisp-symbol-op "fboundp" symbol? eval-fboundp))
+
+(define elisp-fmakunbound
+  (elisp-symbol-op "fmakunbound" symbol? eval-fmakunbound))
+
+(define elisp-fset
+  (elisp-symbol-op2 "fset" symbol? eval-fset))
 
 
 (define (elisp-list . args) (map scheme->elisp args))
@@ -1414,6 +1734,12 @@
      (nil . ,nil)
      (t   . ,t)
 
+     (lambda    . ,elisp-lambda)
+     (apply    . ,elisp-apply)
+     (funcall  . ,elisp-funcall)
+     (defun    . ,elisp-defun-defmacro)
+     (defmacro . ,elisp-defun-defmacro)
+     (function . ,elisp-function)
      (progn    . ,elisp-progn)
      (prog1    . ,elisp-prog1)
      (prog2    . ,elisp-prog2)
@@ -1454,16 +1780,32 @@
      (backquote . ,elisp-backquote)
      (|`|       . ,elisp-backquote)
 
-     (apply   . ,elisp-apply)
-     (funcall . ,elisp-funcall)
-     (lambda   . ,elisp-lambda)
-     (defun    . ,elisp-defun-defmacro)
-     (defmacro . ,elisp-defun-defmacro)
-     (function . ,elisp-function)
+     (make-symbol      . ,elisp-make-symbol)
+     (symbol-name      . ,elisp-symbol-name)
+     (boundp           . ,elisp-boundp)
+     (makunbound       . ,elisp-makunbound)
+     (intern           . ,elisp-intern)
+     (intern-soft      . ,elisp-intern-soft)
+     (unintern         . ,elisp-unintern)
+     (mapatoms         . ,elisp-mapatoms)
+     (symbol-plist     . ,elisp-symbol-plist)
+     (setplist         . ,elisp-setplist)
+     (set              . ,elisp-set)
+     (get              . ,elisp-get)
+     (put              . ,elisp-put)
+     (symbol-function  . ,elisp-symbol-function)
+     (fboundp          . ,elisp-fboundp)
+     (fmakunbound      . ,elisp-fmakunbound)
+     (fset             . ,elisp-fset)
+     (declare          . ,elisp-void-macro) ;; pattern matcher special symbol
+     (interactive      . ,elisp-void-macro) ;; pattern matcher special symbol
 
-     (macroexpand     . ,elisp-macroexpand)
-     (macroexpand-1   . ,elisp-macroexpand-1)
-     (macroexpand-all . ,elisp-macroexpand-all)
+     (macroexpand      . ,elisp-macroexpand)
+     (macroexpand-1    . ,elisp-macroexpand-1)
+     (macroexpand-all  . ,elisp-macroexpand-all)
+
+     (message          . ,elisp-message)
+     (princ            . ,elisp-princ)
 
      ;; ------- end of assocaition list -------
      )))

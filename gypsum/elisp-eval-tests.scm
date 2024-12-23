@@ -375,6 +375,17 @@
         (setq sum (+ n sum))
         nil))))
 
+(test-equal (new-symbol "hello" 5)
+  (test-elisp-eval!
+   '(let ((a (make-symbol "hello")))
+      (set a 5)
+      a)))
+
+(test-equal "hello"
+  (test-elisp-eval!
+   '(let ((a (make-symbol "hello")))
+      (symbol-name a))))
+
 ;;--------------------------------------------------------------------------------------------------
 
 (define test-elisp-progn-var-scope-test
@@ -383,9 +394,9 @@
      (setq glo "top")
      (defun printglo (who) (message (format "%s: glo = %s" who glo)))
      (defun runfn (sym)
-       (message (format-message "--begin-- %s" sym))
+       (message "--begin-- %s" sym)
        (funcall sym)
-       (message (format-message "----end-- %s" sym))
+       (message "----end-- %s" sym)
        )
      (defun fn-A ()
        (printglo 'fn-A)
