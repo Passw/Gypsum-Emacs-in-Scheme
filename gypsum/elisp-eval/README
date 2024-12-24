@@ -9,6 +9,18 @@ Gypsum fork of Guile's Emacs Lisp compiler
 The intent of this fork is to more rapidly develop this source code,
 and hopefully to contribute back to the main Guile project.
 
+Two files in this directory have been split into two parts: a library
+declaration (*.sld) and the regular Scheme code (*.scm). They have
+also been patched with recent bug fixes by the authors of this
+project:
+
+- lexer.sld and lexer.scm
+- parser.sld and parser.scm
+
+Some files in this directory have been added after forking which have
+nothing to do with the original source code:
+
+- environment.sld and environment.scm
 
 
 Original README file

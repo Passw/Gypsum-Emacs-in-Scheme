@@ -31,6 +31,45 @@
           cursor-collect-list  new-cursor-if-iterable)
     (only (rapid match) match match* -> unquote guard)
     (prefix (gypsum editor-impl) *impl/)
+    (only (gypsum elisp-eval environment)
+          elisp-quote-scheme-type?
+          elisp-quote-scheme
+          elisp-unquote-scheme
+          scheme->elisp  elisp->scheme  elisp-null?
+          pure  pure*  pure*-typed  pure*-numbers
+          new-empty-environment
+          elisp-environment-type?
+          env-push-new-elstkfrm!
+          env-pop-elstkfrm!
+          env-resolve-function
+          env-sym-lookup  ;; TODO: replace with a lens?
+          env-intern!     ;; TODO: replace with a lens?
+          env-setq-bind!  ;; TODO: replace with a lens?
+          elstkfrm-from-args
+          elstkfrm-sym-intern!
+          *default-obarray-size*
+          *elisp-input-port*  *elisp-output-port*  *elisp-error-port*
+          =>interp-cur!  =>interp-env!  =>interp-stk!  =>env-obarray-key!
+          =>env-lexstack*!  =>env-obarray*!
+          sym-type?  new-symbol
+          =>sym-name  =>sym-value*!  =>sym-function*!  =>sym-plist*!
+          =>sym-value!  =>sym-function!  =>sym-plist!
+          ensure-string  symbol/string?  any-symbol?
+          nil  t
+          lambda-type?  new-lambda
+          =>lambda-kind!  =>lambda-args!
+          =>lambda-optargs!  =>lambda-rest!
+          =>lambda-docstring!  =>lambda-declares!
+          =>lambda-lexenv!  =>lambda-body!
+          =>lambda-declares*!  =>lambda-interactive*!
+          =>lambda-body*!  =>lambda-kind*!
+          =>lambda-docstring*!
+          make<macro>  macro-type?  macro-procedure  elisp-void-macro
+          elisp-eval-error-type?  raise-error-impl*
+          =>elisp-eval-error-message
+          =>elisp-eval-error-irritants
+          eval-raise  eval-error
+          )
     )
 
   (cond-expand
@@ -52,49 +91,42 @@
     (else))
 
   (export
+   ;; Initializing environments
+   new-environment  elisp-reset-init-env!
+
+   ;; The interpreter
+   elisp-eval!
+
+   ;; Re-exporting symbols from (GYPSUM ELISP-EVAL ENVIRONMENT):
+   ;;------------------------------------------------------------
+
    ;; Quoting Scheme literals
    elisp-quote-scheme  elisp-unquote-scheme
 
    ;; Converting data between Scheme and Elisp
    scheme->elisp  elisp->scheme  elisp-null?  pure  pure*
 
-   ;; Emacs Lisp constant symbols
-   nil t
-
-   ;; The interpreter
-   elisp-intern!  elisp-eval!
-
    ;; Environment objects
-   new-environment  elisp-environment-type?
-   *default-obarray-size*  *elisp-init-env*  elisp-reset-init-env!
+   elisp-environment-type?  elisp-intern!   =>env-obarray-key!
+
+   *the-environment*
+   *default-obarray-size*
+   *elisp-init-env*
    *elisp-input-port*
    *elisp-output-port*
    *elisp-error-port*
-
-   =>interp-cur!  =>interp-env!  =>interp-stk!
-   =>env-obarray-key!
    
    ;; Symbol objects
    sym-type?  new-symbol
    =>sym-name  =>sym-value!  =>sym-function!  =>sym-plist!
-   ensure-string
-
-   ;; Function objects
-   lambda-type?  new-lambda
-   =>lambda-kind!  =>lambda-args!  =>lambda-optargs!  =>lambda-rest!
-   =>lambda-docstring!  =>lambda-declares!  =>lambda-lexenv!  =>lambda-body!
+   =>sym-value*!
+   nil  t
 
    ;; Macro objects
    make<macro>  macro-procedure
 
    ;; Error objects
    elisp-eval-error-type?  =>elisp-eval-error-message  =>elisp-eval-error-irritants
-
-   ;; Stack frames
-   new-elstkfrm  stack-lookup
-   =>elstkfrm-lexstack-key*!  =>elstkfrm-dynstack-key*!  =>elstkfrm*!
-   =>elstkfrm-lexstack*!   =>elstkfrm-dynstack*!
-   elstkfrm-from-args
    )
 
   (include "elisp-eval.scm")
