@@ -30,6 +30,7 @@
           cursor-end?  cursor-type?
           cursor-collect-list  new-cursor-if-iterable)
     (only (rapid match) match match* -> unquote guard)
+    (prefix (gypsum editor-impl) *impl/)
     )
 
   (cond-expand
@@ -66,6 +67,9 @@
    ;; Environment objects
    new-environment  elisp-environment-type?
    *default-obarray-size*  *elisp-init-env*  elisp-reset-init-env!
+   *elisp-input-port*
+   *elisp-output-port*
+   *elisp-error-port*
 
    =>interp-cur!  =>interp-env!  =>interp-stk!
    =>env-obarray-key!

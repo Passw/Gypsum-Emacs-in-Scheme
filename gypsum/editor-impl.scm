@@ -123,3 +123,26 @@
 
 (define command-error-default-function*
   (make-parameter (lambda (data context signal) #f)))
+
+;;--------------------------------------------------------------------------------------------------
+
+(define elisp-input-port* (make-parameter (current-input-port)))
+(define elisp-output-port* (make-parameter (current-output-port)))
+(define elisp-error-port* (make-parameter (current-error-port)))
+
+(define default-prin1-impl
+  (case-lambda
+    ((val) (default-prin1-impl val (elisp-output-port*) #f))
+    ((val stream) (default-prin1-impl val (elisp-output-port*) #f))
+    ((val stream overrides) (write val stream))
+    ))
+
+(define prin1* (make-parameter default-prin1-impl))
+
+(define default-princ-impl
+  (case-lambda
+    ((val) (default-princ-impl val (elisp-output-port*)))
+    ((val stream) (display val stream))
+    ))
+
+(define princ* (make-parameter default-princ-impl))

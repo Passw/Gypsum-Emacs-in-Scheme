@@ -1721,6 +1721,50 @@
   (elisp-macroexpander #t *macroexpand-max-depth* #t))
 
 
+(define (elisp-prin1 . args)
+  (match args
+    ((,val) ((*impl/prin1*) val) val)
+    ((,val ,port) ((*impl/prin1*) val port) val)
+    ((,val ,port ,overrides) ((*impl/prin1*) val port overrides) val)
+    (,any
+     (eval-error
+      "wrong number of arguments" "prin1"
+      (length any) #:min 1 #:max 3))
+    ))
+
+(define (elisp-princ . args)
+  (match args
+    ((,val) ((*impl/princ*) val) val)
+    ((,val ,port) ((*impl/princ*) val port) val)
+    (,any (eval-error "wrong number of arguments" "princ" #:min 1 #:max 2))
+    ))
+
+(define eval-print
+  (case-lambda
+    ((val) (eval-print val *impl/elisp-output-port*))
+    ((val port)
+     (newline port)
+     ((*impl/prin1*) val port)
+     (newline port))
+    ))
+
+(define (elisp-print . args)
+  (match args
+    ((,val) (eval-print val))
+    ((,val ,port) (eval-print val port))
+    (,any (eval-error "wrong number of arguments" "print" #:min 1 #:max 2))
+    ))
+
+(define (elisp-message . args)
+  (match args
+    (() (eval-error "wrong number of arguments" "message" #:min 1))
+    ((,format-str ,args ...)
+     ;; TODO: actually format the string with arguments. Right now
+     ;; this only outputs the format string and ignores the arguments.
+     ((*impl/princ*) format-str (*impl/elisp-error-port*))
+     )))
+
+
 (define *elisp-init-env*
   ;; A parameter containing the default Emacs Lisp evaluation
   ;; environment. This environment is an ordinary association list
@@ -1805,7 +1849,9 @@
      (macroexpand-all  . ,elisp-macroexpand-all)
 
      (message          . ,elisp-message)
+     (prin1            . ,elisp-prin1)
      (princ            . ,elisp-princ)
+     (print            . ,elisp-print)
 
      ;; ------- end of assocaition list -------
      )))

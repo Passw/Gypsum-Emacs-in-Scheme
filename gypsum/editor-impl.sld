@@ -43,6 +43,11 @@
    current-buffer*
    select-window*
    command-error-default-function*
+   elisp-input-port*
+   elisp-error-port*
+   elisp-output-port*
+   prin1*
+   princ*
    )
 
   (include "editor-impl.scm")

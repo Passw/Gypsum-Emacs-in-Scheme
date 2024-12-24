@@ -15,6 +15,7 @@
         mutable-vector-length
         mutable-vector-append!)
   (only (gypsum elisp-eval parser) read-elisp)
+  (prefix (gypsum editor-impl) *impl/)
   )
 (cond-expand
   ((or guile gambit stklos)
@@ -385,6 +386,47 @@
   (test-elisp-eval!
    '(let ((a (make-symbol "hello")))
       (symbol-name a))))
+
+;;--------------------------------------------------------------------------------------------------
+
+(define (test-elisp-eval-both-ports! expr)
+  (call-with-port (open-output-string)
+    (lambda (out)
+      (call-with-port (open-output-string)
+        (lambda (err)
+          (parameterize
+              ((*impl/elisp-output-port* out)
+               (*impl/elisp-error-port*  err)
+               )
+            (let ((result (elisp-eval! expr test-elisp-env)))
+              (list result (get-output-string out) (get-output-string err))
+              )))))))
+
+(define (test-elisp-eval-out-port! expr)
+  (call-with-port (open-output-string)
+    (lambda (out)
+      (parameterize
+          ((*impl/elisp-output-port* out))
+        (let ((result (elisp-eval! expr test-elisp-env)))
+          (list result (get-output-string out))
+          )))))
+
+
+(test-equal (list "Hello, world!" "Hello, world!")
+  (test-elisp-eval-out-port!
+   '(princ "Hello, world!")))
+
+(test-equal (list (list "a" "b" "c") "(a b c)")
+  (test-elisp-eval-out-port!
+   '(princ (list "a" "b" "c"))))
+
+(test-equal (list "Hello, world!\n" "\"Hello, world!\\n\"")
+  (test-elisp-eval-out-port!
+   '(prin1 "Hello, world!\n")))
+
+(test-equal (list (list "a" "b" "c") "(\"a\" \"b\" \"c\")")
+  (test-elisp-eval-out-port!
+   '(prin1 (list "a" "b" "c"))))
 
 ;;--------------------------------------------------------------------------------------------------
 
