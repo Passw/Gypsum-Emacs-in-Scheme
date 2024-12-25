@@ -28,7 +28,6 @@
           cursor-end?  cursor-type?
           cursor-collect-list  new-cursor-if-iterable)
     (only (rapid match) match match* -> unquote guard)
-    (prefix (gypsum editor-impl) *impl/)
     )
 
   (cond-expand
@@ -78,6 +77,7 @@
    =>env-obarray-key!
    =>env-lexstack*!
    =>env-obarray*!
+   =>env-lexical-mode?!
 
    ;; Symbol objects
    sym-type?  new-symbol

@@ -126,14 +126,10 @@
 
 ;;--------------------------------------------------------------------------------------------------
 
-(define elisp-input-port* (make-parameter (current-input-port)))
-(define elisp-output-port* (make-parameter (current-output-port)))
-(define elisp-error-port* (make-parameter (current-error-port)))
-
 (define default-prin1-impl
   (case-lambda
-    ((val) (default-prin1-impl val (elisp-output-port*) #f))
-    ((val stream) (default-prin1-impl val (elisp-output-port*) #f))
+    ((val) (default-prin1-impl val (*elisp-output-port*) #f))
+    ((val stream) (default-prin1-impl val (*elisp-output-port*) #f))
     ((val stream overrides) (write val stream))
     ))
 
@@ -141,7 +137,7 @@
 
 (define default-princ-impl
   (case-lambda
-    ((val) (default-princ-impl val (elisp-output-port*)))
+    ((val) (default-princ-impl val (*elisp-output-port*)))
     ((val stream) (display val stream))
     ))
 

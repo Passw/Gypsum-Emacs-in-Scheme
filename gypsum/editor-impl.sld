@@ -8,6 +8,11 @@
     (scheme base)
     (scheme case-lambda)
     (only (scheme write) display write)
+    (only (gypsum elisp-eval environment)
+          *elisp-input-port*
+          *elisp-output-port*
+          *elisp-error-port*
+          )
     )
 
   (export
@@ -43,9 +48,6 @@
    current-buffer*
    select-window*
    command-error-default-function*
-   elisp-input-port*
-   elisp-error-port*
-   elisp-output-port*
    prin1*
    princ*
    )

@@ -383,6 +383,10 @@
   (mode env-lxmode    set!env-lxmode)   ;;lexical binding mode
   )
 
+(define *elisp-input-port* (make-parameter (current-input-port)))
+(define *elisp-output-port* (make-parameter (current-output-port)))
+(define *elisp-error-port* (make-parameter (current-error-port)))
+
 (define =>env-dynstack*!
   (record-unit-lens env-dynstack set!env-dynstack '=>env-dynstack*!))
 

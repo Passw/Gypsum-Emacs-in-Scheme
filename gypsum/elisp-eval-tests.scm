@@ -10,6 +10,9 @@
         =>lambda-optargs!
         =>lambda-rest!
         =>lambda-body!
+        =>env-lexical-mode?!
+        *elisp-output-port*
+        *elisp-error-port*
         )
   (gypsum elisp-eval)
   (gypsum lens)
@@ -264,8 +267,8 @@
       (call-with-port (open-output-string)
         (lambda (err)
           (parameterize
-              ((*impl/elisp-output-port* out)
-               (*impl/elisp-error-port*  err)
+              ((*elisp-output-port* out)
+               (*elisp-error-port*  err)
                )
             (let ((result (elisp-eval! expr test-elisp-env)))
               (list result (get-output-string out) (get-output-string err))
@@ -275,7 +278,7 @@
   (call-with-port (open-output-string)
     (lambda (out)
       (parameterize
-          ((*impl/elisp-output-port* out))
+          ((*elisp-output-port* out))
         (let ((result (elisp-eval! expr test-elisp-env)))
           (list result (get-output-string out))
           )))))
@@ -297,17 +300,31 @@
   (test-elisp-eval-out-port!
    '(prin1 (list "a" "b" "c"))))
 
+(test-equal "Hello, world!"
+  (test-elisp-eval!
+   '(format "Hello, %s" "world!")))
+
+(test-equal "Hello 1234"
+  (test-elisp-eval!
+   '(format "Hello %S" 1234)))
+
+(test-equal (list '() "" "Hello, world!\n")
+  (test-elisp-eval-both-ports!
+   '(message "Hello, %s" "world!")))
+
 ;;--------------------------------------------------------------------------------------------------
 
 (define test-elisp-progn-var-scope-test
   '(progn
-     (message "------------------------------")
+     (princ "------------------------------\n")
      (setq glo "top")
-     (defun printglo (who) (message (format "%s: glo = %s" who glo)))
+     (defun printglo (who)
+       (princ (format "%s: glo = %s\n" who glo))
+       nil)
      (defun runfn (sym)
-       (message "--begin-- %s" sym)
+       (princ (format "--begin-- %s\n" sym))
        (funcall sym)
-       (message "----end-- %s" sym)
+       (princ (format "----end-- %s\n" sym))
        )
      (defun fn-A ()
        (printglo 'fn-A)
@@ -332,7 +349,7 @@
      (printglo 'top-reset-A)
      (runfn 'fn-B)
      (printglo 'top)
-     (message "------------------------------")
+     (princ "------------------------------\n")
      t)
   )
 
@@ -391,6 +408,16 @@ fn-B: glo = top
 top: glo = top
 ------------------------------
 ")
+
+(test-equal (list #t lexical-scope-test-expected-result)
+  (test-elisp-eval-out-port! test-elisp-progn-var-scope-test))
+
+(lens-set #f test-elisp-env =>env-lexical-mode?!)
+
+(test-equal (list #t dynamic-scope-test-expected-result)
+  (test-elisp-eval-out-port! test-elisp-progn-var-scope-test))
+
+(lens-set #t test-elisp-env =>env-lexical-mode?!)
 
 ;;--------------------------------------------------------------------------------------------------
 

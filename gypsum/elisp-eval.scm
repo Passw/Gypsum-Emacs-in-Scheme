@@ -1035,6 +1035,15 @@
   (elisp-macroexpander #t *macroexpand-max-depth* #t))
 
 
+(define (elisp-format . args)
+  (match args
+    ((,fstr ,args ...)
+     (cond
+      ((string? fstr) (scheme->elisp (apply format fstr args)))
+      (else (eval-error "wrong type argument" fstr #:expecting "string"))
+      ))
+    ))
+
 (define (elisp-prin1 . args)
   (match args
     ((,val) ((*impl/prin1*) val) val)
@@ -1055,7 +1064,7 @@
 
 (define eval-print
   (case-lambda
-    ((val) (eval-print val *impl/elisp-output-port*))
+    ((val) (eval-print val *elisp-output-port*))
     ((val port)
      (newline port)
      ((*impl/prin1*) val port)
@@ -1073,10 +1082,11 @@
   (match args
     (() (eval-error "wrong number of arguments" "message" #:min 1))
     ((,format-str ,args ...)
-     ;; TODO: actually format the string with arguments. Right now
-     ;; this only outputs the format string and ignores the arguments.
-     ((*impl/princ*) format-str (*impl/elisp-error-port*))
-     )))
+     (let ((port (*elisp-error-port*)))
+       (apply format-to-port port format-str args)
+       (newline port)
+       '()
+       ))))
 
 
 (define *elisp-init-env*
@@ -1138,6 +1148,10 @@
      (backquote . ,elisp-backquote)
      (|`|       . ,elisp-backquote)
 
+     (macroexpand      . ,elisp-macroexpand)
+     (macroexpand-1    . ,elisp-macroexpand-1)
+     (macroexpand-all  . ,elisp-macroexpand-all)
+
      (make-symbol      . ,elisp-make-symbol)
      (symbol-name      . ,elisp-symbol-name)
      (boundp           . ,elisp-boundp)
@@ -1158,10 +1172,7 @@
      (declare          . ,elisp-void-macro) ;; pattern matcher special symbol
      (interactive      . ,elisp-void-macro) ;; pattern matcher special symbol
 
-     (macroexpand      . ,elisp-macroexpand)
-     (macroexpand-1    . ,elisp-macroexpand-1)
-     (macroexpand-all  . ,elisp-macroexpand-all)
-
+     (format           . ,elisp-format)
      (message          . ,elisp-message)
      (prin1            . ,elisp-prin1)
      (princ            . ,elisp-princ)

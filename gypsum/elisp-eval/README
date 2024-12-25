@@ -21,6 +21,7 @@ Some files in this directory have been added after forking which have
 nothing to do with the original source code:
 
 - environment.sld and environment.scm
+- format.sld and format.scm
 
 
 Original README file

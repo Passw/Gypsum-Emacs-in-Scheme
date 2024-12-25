@@ -70,6 +70,7 @@
           =>elisp-eval-error-irritants
           eval-raise  eval-error
           )
+    (only (gypsum elisp-eval format) format format-to-port)
     )
 
   (cond-expand
