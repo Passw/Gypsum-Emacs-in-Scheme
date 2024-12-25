@@ -22,6 +22,7 @@ nothing to do with the original source code:
 
 - environment.sld and environment.scm
 - format.sld and format.scm
+- pretty.sld and pretty.scm
 
 
 Original README file
