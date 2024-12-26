@@ -540,10 +540,44 @@
                 (lens-set func obj =>sym-function*!))
                (else (eval-error "failed to intern symbol" sym obj)))
               ))
-           (else (eval-error "wrong type argument, expected symbol" sym))
+           (else (eval-error "wrong type argument" sym #:expecting "symbol"))
            ))
          ((,name ,args ,body ...) (eval-error "malformed arglist" args))
          )))))
+
+
+(define (eval-defalias sym-expr val-expr docstr)
+  (let*((st (*the-environment*))
+        (sym (eval-ensure-interned (eval-form sym-expr)))
+        (val (eval-form val-expr))
+        (func
+         (let loop ((val val))
+           (cond
+            ((symbol? val)
+             (loop (view st (=>env-obarray-key! (symbol->string val)))))
+            ((sym-type? val) (view val =>sym-function*!))
+            ((lambda-type? val) val)
+            ((procedure? val) val)
+            ((command-type? val) val)
+            (else #f)
+            )))
+        )
+    (display ";; defalias: #:sym ")(write sym)(display " #:func ")(write func)(newline);;DEBUG
+    (cond
+     ((not func) (eval-error "void function" val))
+     ((not sym) (eval-error "wrong type argument" sym #:expecting "symbol"))
+     (else (lens-set! func sym =>sym-function*!))
+     )))
+
+
+(define elisp-defalias
+  (make<macro>
+   (lambda expr
+     (match (cdr expr)
+       ((,sym-expr ,val-expr) (eval-defalias sym-expr val-expr #f))
+       ((,sym-expr ,val-expr ,docstr) (eval-defalias sym-expr val-expr docstr))
+       (,any (eval-error "wrong number of arguments" (length any) #:min 2 #:max 3))
+       ))))
 
 
 (define (set-function-body! func body-exprs)
@@ -659,8 +693,31 @@
    ((symbol/string? name/sym)
     (update&view
      updater st
-     (=>env-obarray-key! (symbol->string name/sym))))
+     (=>env-obarray-key! (ensure-string name/sym))))
    ))
+
+
+(define (eval-ensure-interned sym)
+  ;; A procedure that returns a <SYM-TYPE> object or creates a new
+  ;; interned symbol and returns it.
+  ;;------------------------------------------------------------------
+  ;; TODO: place this API into (gypsum elisp-eval environment) instead?
+  (let ((st (*the-environment*)))
+    (cond
+     ((symbol? sym)
+      (let*((name (symbol->string sym))
+            (obj (view st (=>env-obarray-key! name))))
+        (cond
+         (obj obj)
+         (else
+          (let ((obj (new-symbol name)))
+            (lens-set obj st (=>env-obarray-key! name))
+            obj
+            )))))
+     ((sym-type? sym) sym)
+     (else (eval-error "wrong type argument" sym #:expecting "symbol"))
+     )))
+
 
 (define (eval-make-symbol name) (new-symbol (ensure-string name)))
 
@@ -1107,6 +1164,7 @@
      (funcall  . ,elisp-funcall)
      (defun    . ,elisp-defun-defmacro)
      (defmacro . ,elisp-defun-defmacro)
+     (defalias . ,elisp-defalias)
      (function . ,elisp-function)
      (progn    . ,elisp-progn)
      (prog1    . ,elisp-prog1)

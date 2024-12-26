@@ -421,6 +421,28 @@ top: glo = top
 
 ;;--------------------------------------------------------------------------------------------------
 
+(test-equal '(1 1 2 2 2 1 1)
+  (elisp-eval! 
+   '(progn
+      (unintern 'abcd)
+      (unintern 'bcde)
+      (defun abcd () 1)
+      (defalias 'bcde 'abcd)
+      (let ((a (abcd))
+            (b (bcde)))
+        (defun abcd () 2)
+        (let ((c (abcd))
+              (d (bcde)))
+          (unintern 'abcd)
+          (let ((e (bcde)))
+            (defun abcd () 1)
+            (let ((f (abcd))
+                  (g (bcde)))
+              (list a b c d e f g)
+              )))))))
+
+;;--------------------------------------------------------------------------------------------------
+
 (test-end "gypsum_elisp_eval_tests")
 
 ;;--------------------------------------------------------------------------------------------------
