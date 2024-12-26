@@ -2,6 +2,7 @@
 (define *the-environment*
   (make-parameter (new-empty-environment *default-obarray-size*)))
 
+
 (define (elisp-intern! . assocs)
   ;; This procedure is exported, so mostly used by users of this
   ;; library to directly update an Emacs Lisp environment from within
@@ -60,6 +61,48 @@
         (parameterize
             ((raise-error-impl* halt-eval))
           (eval-form (scheme->elisp expr))))))))
+
+
+(define (eval-iterate-forms st port use-form)
+  (let-values
+      (((port close-on-end)
+        (cond
+         ((input-port? port) (values port #f))
+         ((string? port) (values (open-input-file port) #t))
+         (else (error "not a filepath or input port" port))
+         ))
+       )
+    (call-with-port port
+      (lambda (port)
+        (define (loop form)
+          (cond
+           ((eof-object? form)
+            (when close-on-end (close-port port))
+            (values))
+           (else
+            (use-form form)
+            (loop (read-elisp port))
+            )))
+        ;; First handle the lexical binding mode, if it exists.
+        (let ((form (read-elisp port)))
+          (match form
+            ((%set-lexical-binding-mode ,on/off)
+             (lens-set on/off st =>env-lexical-mode?!)
+             (loop (read-elisp port))
+             )
+            (,any (loop form))
+            ))))))
+
+
+(define elisp-load!
+  (case-lambda
+    ((filepath)
+     (elisp-load filepath (*the-environment*))
+     )
+    ((filepath st)
+     (eval-iterate-forms st filepath
+      (lambda (form) (elisp-eval! form st))))
+    ))
 
 ;;====================================================================
 ;; The interpreting evaluator. Matches patterns on the program and
@@ -576,7 +619,9 @@
      (match (cdr expr)
        ((,sym-expr ,val-expr) (eval-defalias sym-expr val-expr #f))
        ((,sym-expr ,val-expr ,docstr) (eval-defalias sym-expr val-expr docstr))
-       (,any (eval-error "wrong number of arguments" (length any) #:min 2 #:max 3))
+       (,any
+        (eval-error "wrong number of arguments" "defalias"
+         (length any) #:min 2 #:max 3))
        ))))
 
 
@@ -910,7 +955,9 @@
      (eval-make-symbol (ensure-string name)))
     ((,name)
      (eval-error "wrong type argument" name #:expecting "symbol or string"))
-    (,any (eval-error "wrong number of arguments" (length any) #:expecting 1))
+    (,any
+     (eval-error "wrong number of arguments" "make-symbol"
+      (length any) #:expecting 1))
     ))
 
 (define elisp-symbol-name
@@ -1146,6 +1193,19 @@
        ))))
 
 
+(define (elisp-load . args)
+  (match args
+    ((,filepath)
+     (cond
+      ((string? filepath) (elisp-load! filepath (*the-environment*)))
+      (else (eval-error "wrong type argument" filepath #:expecting "string"))
+      ))
+    (,any
+     (eval-error "wrong number of arguments" "load"
+      (length any) #:min 1 #:max 2))
+    ))
+
+
 (define *elisp-init-env*
   ;; A parameter containing the default Emacs Lisp evaluation
   ;; environment. This environment is an ordinary association list
@@ -1235,6 +1295,8 @@
      (prin1            . ,elisp-prin1)
      (princ            . ,elisp-princ)
      (print            . ,elisp-print)
+
+     (load             . ,elisp-load)
 
      ;; ------- end of assocaition list -------
      )))

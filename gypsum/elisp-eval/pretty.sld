@@ -12,6 +12,6 @@
           bracketed   form   join-by   join-lines
           )
     )
-  (export elisp-pretty)
+  (export elisp-pretty elisp-print)
   (include "pretty.scm")
   )

@@ -5,9 +5,12 @@
     ((port form) (pretty port (print (pp form) (line-break))))
     ))
 
+
 (define (pp-form func args) (apply form 1 func args))
 
+
 (define (pp-quoted char form) (print char (indent-by 1 (pp form))))
+
 
 (define (pp form)
   (match form
@@ -37,6 +40,9 @@
     ))
 
 
+(define elisp-print pp)
+
+
 (define (block-form sym num-init-args init-indent indent body)
   ;; This is used for things like "let", "cond", and "progn", where
   ;; basically each element of the body needs to be printed on it's
@@ -51,8 +57,6 @@
      (else (values (reverse keep) body))
      ))
   (let-values (((inits body) (take 0 '() body)))
-    (display ";; inits: ")(write inits)(newline);;DEBUG
-    (display ";;  body: ")(write body)(newline);;DEBUG
     (cond
      ((pair? body)
       (bracketed 2 #\( #\) sym

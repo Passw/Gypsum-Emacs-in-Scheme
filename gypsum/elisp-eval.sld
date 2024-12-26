@@ -10,9 +10,9 @@
   ;; is defined in the `(GYPSUM ELISP)` library.
   (import
     (scheme base)
-    (scheme eval)
     (scheme cxr)
     (scheme case-lambda)
+    (only (scheme file) open-input-file)
     (only (scheme write) display write)
     (only (srfi 1) assq)
     (only (gypsum editor command) command-type? command-procedure)
@@ -31,6 +31,7 @@
           cursor-collect-list  new-cursor-if-iterable)
     (only (rapid match) match match* -> unquote guard)
     (prefix (gypsum editor-impl) *impl/)
+    (only (gypsum elisp-eval parser) read-elisp)
     (only (gypsum elisp-eval environment)
           elisp-quote-scheme-type?
           elisp-quote-scheme
@@ -50,7 +51,7 @@
           *default-obarray-size*
           *elisp-input-port*  *elisp-output-port*  *elisp-error-port*
           =>interp-cur!  =>interp-env!  =>interp-stk!  =>env-obarray-key!
-          =>env-lexstack*!  =>env-obarray*!
+          =>env-lexstack*!  =>env-obarray*!  =>env-lexical-mode?!
           sym-type?  new-symbol
           =>sym-name  =>sym-value*!  =>sym-function*!  =>sym-plist*!
           =>sym-value!  =>sym-function!  =>sym-plist!
@@ -96,7 +97,7 @@
    new-environment  elisp-reset-init-env!
 
    ;; The interpreter
-   elisp-eval!
+   elisp-eval!  elisp-load!  eval-iterate-forms
 
    ;; Re-exporting symbols from (GYPSUM ELISP-EVAL ENVIRONMENT):
    ;;------------------------------------------------------------
