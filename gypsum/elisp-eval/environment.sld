@@ -14,7 +14,18 @@
     (only (scheme write) display write)
     (only (srfi 1) assq)
     (only (gypsum editor command) command-type? command-procedure)
-    (only (gypsum compat) hash-table-empty?)
+    (only (gypsum hash-table)
+          hash-table?
+          hash-table-empty?
+          make-hash-table
+          alist->hash-table
+          hash-table->alist
+          hash-table-set!
+          hash-table-delete!
+          hash-table-ref/default
+          hash-table-walk
+          string-hash
+          )
     (only (gypsum lens)
           unit-lens  record-unit-lens  lens
           lens-set  lens-set!  endo-view  view
@@ -29,24 +40,6 @@
           cursor-collect-list  new-cursor-if-iterable)
     (only (rapid match) match match* -> unquote guard)
     )
-
-  (cond-expand
-    ((or guile-3 gambit stklos)
-     (import
-       (only (srfi 69)
-             hash-table?
-             make-hash-table
-             alist->hash-table
-             hash-table->alist
-             hash-table-set!
-             hash-table-delete!
-             hash-table-ref/default
-             hash-table-walk
-             string-hash)
-       (only (srfi srfi-13)
-             string-hash)
-       ))
-    (else))
 
   (export
    ;; Quoting Scheme literals

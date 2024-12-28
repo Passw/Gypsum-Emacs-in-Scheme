@@ -1,7 +1,6 @@
 (import
   (scheme base)
   (scheme case-lambda)
-  ;;(gypsum compat)
   (gypsum lens)
   (gypsum lens bin-hash-table)
   (only (gypsum lens) view)

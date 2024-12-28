@@ -244,7 +244,7 @@
   (lens-set elem kt (=>char-table-char! do-rebalance char)))
 
 (define (char-table-view kt char)
-  "Lookup an element associated with a character from within a <char-table>."
+  ;; Lookup an element associated with a character from within a <char-table>.
   (view kt (=>char-table-char! #f char)))
 
 (define (char-table-update! up kt char)
@@ -350,7 +350,7 @@
     (if ok (list->string char-list) #f)))
 
 (define (keymap-index-head kmix)
-  "Return just the head of a keymap index"
+  ;; Return just the head of a keymap index
   (make<keymap-index> (mod-index kmix) (char-index kmix) #f))
 
 (define sym-lookup-table

@@ -1,42 +1,34 @@
-(define-library (gypsum compat)
-  ;; Symbols defined for cross-compatability
+(define-library (gypsum vector)
+  ;; TODO: Remove this library some day, when SRFI-133 becomes more
+  ;; ubiquitous, or perhaps just when Guile finally supports the
+  ;; SRFI-133 API.
+  ;;
+  ;; Not all of SRFI-133 is used in this project, so only the APIs
+  ;; used but not defined more universally across various Scheme
+  ;; implementations are defined here.
 
-  (import
-    (scheme base)
-    )
+  (import (scheme base))
+  (export
+   vector-fold
+   )
 
   (cond-expand
-    (guile
+    ((or guile-3 gambit)
      (import
-       (only (srfi 69) hash-table-size))
+       (only (srfi 43)
+             vector-fold))
      )
-    (gambit
-     (import (srfi 69)))
-    (else))
-
-  (cond-expand
-    ((or guile gambit)
-     (export
-      hash-table-empty?
-      )
-     (begin
-       (define (hash-table-empty? ht)
-         (= 0 (hash-table-size ht)))
-       )
+    ((library (srfi 133))
+     (import
+       (only (srfi 133)
+             vector-fold))
+     )
+    ((library (srfi 43))
+     (import
+       (only (srfi 43)
+             vector-fold))
      )
     (else
-     (import
-       (only (srfi 125) hash-table-empty?))
-     (export
-      hash-table-empty?
-      ))
-    )
-
-  (cond-expand
-    ((or guile gambit)
-     (export
-      vector-fold
-      )
      (begin
        (define (vector-fold kons knil . veclist)
          ;; This is an implementation of SRFI-133 `VECTOR-FOLD`
@@ -62,12 +54,5 @@
                               (map (lambda (vec) (vector-ref vec i))
                                    veclist))))))))
            ))
-       ))
-    (else
-     (import
-       (only (srfi 133) vector-fold))
-     (export
-      vector-fold
-      ))
-    )
+       )))
   )

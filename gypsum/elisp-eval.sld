@@ -16,7 +16,7 @@
     (only (scheme write) display write)
     (only (srfi 1) assq)
     (only (gypsum editor command) command-type? command-procedure)
-    (only (gypsum compat) hash-table-empty?)
+    (only (gypsum hash-table) hash-table-empty?)
     (only (gypsum lens)
           unit-lens  record-unit-lens  lens
           lens-set  lens-set!  endo-view  view

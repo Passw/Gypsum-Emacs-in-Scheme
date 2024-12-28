@@ -3,7 +3,6 @@
     (scheme base)
     (scheme case-lambda)
     (scheme write)
-    (gypsum compat)
     (only (scheme write) display)
     (only (gypsum lens)
           lens record-unit-lens view lens-set
@@ -16,14 +15,12 @@
     ;;       vector-set! make-vector vector-fold vector-ref vector-fold-right)
     (only (srfi 60) ; Integers as Bits
           bitwise-ior bitwise-and)
-    (only (srfi 69) ; Standard hash tables
+    (only (gypsum hash-table) ; Standard hash tables
+          hash-table-empty?
           hash make-hash-table alist->hash-table hash-table->alist
           hash-table-size hash-table-copy hash-table-walk
           hash-table-update!/default hash-table-set!
           hash-table-fold hash-table?
-          ;; make-hash-table
-          ;; hash-table-size hash-table-set! hash-table-delete!
-          ;; hash-table-ref/default hash-table-update!/default
           )
     )
   (cond-expand

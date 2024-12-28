@@ -3,9 +3,14 @@
     (scheme base)
     (scheme write)
     (scheme case-lambda)
-    (only (gypsum compat)
-          hash-table-empty?
-          vector-fold)
+    (only (gypsum vector) vector-fold)
+    (only (gypsym hash-table)
+          hash-table-empty?  hash-table?
+          make-hash-table   alist->hash-table   hash-table->alist
+          hash-table-size   hash-table-set!   hash-table-delete!
+          hash-table-fold   hash-table-ref/default
+          hash-table-update!/default
+          )
     )
 
   (cond-expand
@@ -13,27 +18,11 @@
      (import
        (only (srfi 1) member)
        (only (srfi srfi-9 gnu) set-record-type-printer!)
-       (only (srfi 28) format)
-       (only (srfi 69)
-             hash-table? make-hash-table alist->hash-table hash-table->alist
-             hash-table-size hash-table-set! hash-table-delete! hash-table-fold
-             hash-table-ref/default hash-table-update!/default)
-       (only (srfi 111) unbox set-box!))
+       (only (srfi 28) format))
      )
-    (gambit
-     ;; NOTE:
-     ;; Gambit does not seem to correctly implement the syntax for
-     ;;     (import (only (srfi 64) ...))
-     ;; as it fails with the error
-     ;;     Unbound variable: _test#test-begin
-     ;; even though the "test-begin" symbol is explcitly imported. The
-     ;; error goes away when I use the expression
-     ;;     (import (srfi 64))
-     ;;
-     ;; Ramin Honary <2024-10-04>
-     ;; Gambit v4.9.5 20230726044844 aarch64-unknown-linux-gnu "./configure"
-     (import
-       (srfi 69))
+    ((or guile chibi)
+     (import 
+       (only (srfi 111) unbox set-box!))
      )
     (else))
 
@@ -92,7 +81,7 @@
    =>trace =>assert
    )
   (cond-expand
-    ((or gambit guile stklos)
+    ((or gambit guile stklos chibi)
      (export =>box)
      ))
 

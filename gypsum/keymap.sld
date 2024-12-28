@@ -6,7 +6,6 @@
     (scheme write)
     (scheme lazy)
     (scheme case-lambda)
-    (gypsum compat)
     (only (gypsum lens)
           lens view update update&view lens-set
           unit-lens record-unit-lens
@@ -41,7 +40,8 @@
           vector-fold vector-ref vector-fold-right)
     (only (srfi 60) ; Integers as Bits
           bitwise-ior bitwise-and)
-    (only (srfi 69) ; Standard hash tables
+    (only (gypsum hash-table)
+          hash-table-empty?
           string-hash alist->hash-table hash-table->alist
           hash-table? hash-table-size make-hash-table
           hash-table-fold hash-table-ref/default
