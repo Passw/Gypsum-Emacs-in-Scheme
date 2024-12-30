@@ -36,3 +36,12 @@ repository.
 - Download date: <2024-12-05 Thr>
 - Source URL: <https://snow-fort.org/s/rapid-scheme.org/marc/rapid/test/0.1.3/rapid-test-0.1.3.tgz>
 - SHA256 Checksum: f4c432673e7e11993b602fc04b9ef95083a8bc44e6d6de8de0d6f450328b80cc
+
+### `(rapid format)`
+
+> Basic format strings compatible with SRFI 28.
+
+- Library Version: 0.1.0
+- Download date: <2024-12-29 Sun>
+- Source URL: <https://snow-fort.org/s/rapid-scheme.org/marc/rapid/format/0.1.0/rapid-format-0.1.0.tgz>
+- SHA256 Checksum: fa3dc4ea1c85698b3ae98f763d6eccf02566c5c7da2fdf49fd95d9d84e760aed
