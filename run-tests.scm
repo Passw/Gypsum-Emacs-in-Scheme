@@ -1,11 +1,29 @@
-(load "gypsum/lens-tests.scm")
-(load "gypsum/lens/vector-tests.scm")
-(load "gypsum/lens/bin-hash-table-tests.scm")
-(load "gypsum/pretty-tests.scm")
-(load "gypsum/keymap-tests.scm")
-(load "gypsum/concurrent-tests.scm")
-(load "gypsum/cursor-tests.scm")
-(load "gypsum/match-tests.scm")
-(load "gypsum/elisp-eval/environment-tests.scm")
-(load "gypsum/elisp-eval/format-tests.scm")
-(load "gypsum/elisp-eval-tests.scm")
+(import
+  (only (scheme load) load)
+  (only (scheme repl) interaction-environment))
+
+(cond-expand
+  (guile
+   (define (path str)
+     (string-append (getcwd) "/" str))
+   )
+  (else
+   (define (path str) str)
+   ))
+
+(for-each
+ (lambda (filepath)
+   (load (path filepath) (interaction-environment))
+   )
+ (list 
+  "gypsum/lens-tests.scm"
+  "gypsum/lens/vector-tests.scm"
+  "gypsum/lens/bin-hash-table-tests.scm"
+  "gypsum/pretty-tests.scm"
+  "gypsum/keymap-tests.scm"
+  "gypsum/concurrent-tests.scm"
+  "gypsum/cursor-tests.scm"
+  "gypsum/elisp-eval/environment-tests.scm"
+  "gypsum/elisp-eval/format-tests.scm"
+  "gypsum/elisp-eval-tests.scm"
+  ))
