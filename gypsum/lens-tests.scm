@@ -2,31 +2,20 @@
   (scheme base)
   (scheme cxr)
   (gypsum lens)
+  (only (gypsum hash-table)
+        hash-table?  hash
+        hash-table-set!
+        make-hash-table
+        hash-table-size
+        alist->hash-table
+        hash-table->alist
+        hash-table-walk
+        )
   (only (srfi 64)
         test-begin test-end
-        test-assert test-equal))
-
-(cond-expand
-  (guile-3
-   (import
-     (only (srfi 69)
-           hash-table?
-           hash-table-set!
-           make-hash-table
-           hash-table-size
-           alist->hash-table
-           hash-table->alist
-           hash-table-walk))
-   )
-  (else))
-
-(cond-expand
-  (gambit
-   ;; NOTE: see lens.sld import of (srfi 69) for why this is necessary.
-   (import (srfi 64))
-   (import (srfi 69))
-   )
-  (else))
+        test-assert test-equal
+        )
+  )
 
 ;; -------------------------------------------------------------------------------------------------
 
@@ -57,10 +46,10 @@
 (test-equal 1 (lens-unit-count =>list3-first))
 (test-equal 9 (lens-unit-count (lens =>list3-end =>list3-end =>list3-third)))
 
-(define tt (make-hash-table))
+(define tt (make-hash-table equal?))
 (define (=>tt-key key) (=>hash-key*! key))
 
-(define h (alist->hash-table '(("one" . 1) ("zero" . 0))))
+(define h (alist->hash-table '(("one" . 1) ("zero" . 0))  equal?))
 
 (define h2
   (alist->hash-table
@@ -70,10 +59,13 @@
         `(("two" .
            ,(alist->hash-table
              '(("four" . 4)
-               ("five" . 5))))
+               ("five" . 5))
+             equal?
+             ))
           ("three" . 3))
-        ))
-     )))
+        equal?
+        )))
+   equal?))
 
 (test-equal 0 (view h (=>tt-key "zero")))
 (test-equal 1 (view h (=>tt-key "one")))
@@ -144,7 +136,7 @@
 (test-equal 5 (view h2 "zero" "two" "five"))
 
 (lens-set
- (vector "zero" "one" (lens-set "how are you" (make-hash-table) "hello") "three")
+ (vector "zero" "one" (lens-set "how are you" (make-hash-table equal?) "hello") "three")
  h2 "zero" "three")
 (test-equal "one" (view h2 "zero" "three" 1))
 (test-equal "how are you" (view h2 "zero" "three" 2 "hello"))
@@ -173,12 +165,18 @@
           ,(vector
             (alist->hash-table ;; at index 0
              `(("C" . "go-up")
-               ("D" . "go-down")))
+               ("D" . "go-down"))
+             equal?)
             (alist->hash-table ;; at index 1
              '(("E" . "turn-around")
-               ("F" . "jump")))
+               ("F" . "jump"))
+             equal?)
             #f ;; at index 2
-            ))))))))
+            )))
+        equal?
+        )))
+   equal?
+   ))
 
 (test-equal 0 (view ht "zero"))
 (test-equal "go-left" (view ht "AB" "A"))
@@ -344,8 +342,11 @@
        (cons 'periodic-table
         (vector
           #f "Hydrogen" "Helium" "Lithium" "Berylium" "Boron"
-          "Carbon" "Nitrogen" "Oxygen" "Flourine" "Neon"))))
-     ))))
+          "Carbon" "Nitrogen" "Oxygen" "Flourine" "Neon")))
+      equal?
+      )))
+   equal?
+   ))
 
 (test-equal "Hydrogen"
   (view ht (=>DFS (select-by-key-symbol 'periodic-table)) 1))
@@ -393,19 +394,23 @@
   ;; `lens-set` applies the lens to #f.
 
 (let*((c (lens-set 255 #f =>green!))
-      (c (lens-set 255 c  =>blue!)))
-
-(test-equal (make<color> 0 255 255) c)
+      (c (lens-set 255 c  =>blue!))
+      (cyan (make<color> 0 255 255)))
+  (test-assert
+      (and (= (view cyan =>green!) (view c =>green!))
+           (= (view cyan =>blue!)  (view c =>blue!))
+           (= (view cyan =>red!)   (view c =>red!))
+           ))
 
   ;; Setting the color to black with our canonical lenses will return
   ;; #f in place of a color, since the canonical lens uses the
   ;; `black?` predicate to decide if the <COLOR-TYPE> value is
   ;; "empty."
   
-(let*((c (lens-set 0 c =>green!))
-      (c (lens-set 0 c =>blue!)))
-  (test-equal #f c) ;; #f
-  ))
+  (let*((c (lens-set 0 c =>green!))
+        (c (lens-set 0 c =>blue!)))
+    (test-equal #f c) ;; #f
+    ))
 
   ;; To declare a new translation rule, pass two arguments:
   ;;
@@ -495,7 +500,7 @@
 
 (test-equal '(("" . "Hello"))
   (hash-table->alist
-   (lens-set "Hello" (make-hash-table) =>initial)))
+   (lens-set "Hello" (make-hash-table equal?) =>initial)))
 
 (test-equal '("Hello")
   (lens-set "Hello" '() =>initial))

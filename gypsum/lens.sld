@@ -16,7 +16,6 @@
   (cond-expand
     (guile
      (import
-       (only (srfi 1) member)
        (only (srfi srfi-9 gnu) set-record-type-printer!)
        (only (srfi 28) format)
        (only (srfi 111) unbox set-box!))
@@ -24,10 +23,20 @@
     (else
      ;; Guile does not seem to recognize the (library ...) clause in
      ;; "cond-expand" statements used in "define-library" statements.
-     ((library (srfi 111))
-      (import 
-        (only (srfi 111) unbox set-box!))
-      )))
+     (cond-expand
+       ((library (srfi 111))
+        (import 
+          (only (srfi 111) unbox set-box!))
+        )
+       (else))
+
+     (cond-expand
+       ((library (srfi 28))
+        (import (only (srfi 28) format)))
+       (else
+        (import (only (rapid format) format)))
+       )
+     ))
 
   (export
    ;; -------------------- Main API --------------------
@@ -41,7 +50,7 @@
    %unit-lens-type? %lens-type? unit-lens
    unit-lens-view unit-lens-update unit-lens-set unit-lens-swap
    unit-lens-getter unit-lens-setter
-   record-unit-lens record-immutable-lens
+   record-unit-lens
    unit-lens-getter unit-lens-setter unit-lens-updater unit-lens->expr
    default-unit-lens-setter  default-unit-lens-updater
 
@@ -86,13 +95,12 @@
   (cond-expand
     ((or gambit guile stklos chibi)
      (export =>box)
-     ))
+     )
+    (else))
 
   (cond-expand
     (stklos
      (include "./gypsum/lens.scm"))
-    (guile
-     (include "lens.scm"))
     (else
      (include "lens.scm"))
     ))
