@@ -4,7 +4,7 @@
     (scheme write)
     (scheme case-lambda)
     (only (gypsum vector) vector-fold)
-    (only (gypsym hash-table)
+    (only (gypsum hash-table)
           hash-table-empty?  hash-table?
           make-hash-table   alist->hash-table   hash-table->alist
           hash-table-size   hash-table-set!   hash-table-delete!
@@ -18,13 +18,16 @@
      (import
        (only (srfi 1) member)
        (only (srfi srfi-9 gnu) set-record-type-printer!)
-       (only (srfi 28) format))
-     )
-    ((or guile chibi)
-     (import 
+       (only (srfi 28) format)
        (only (srfi 111) unbox set-box!))
      )
-    (else))
+    (else
+     ;; Guile does not seem to recognize the (library ...) clause in
+     ;; "cond-expand" statements used in "define-library" statements.
+     ((library (srfi 111))
+      (import 
+        (only (srfi 111) unbox set-box!))
+      )))
 
   (export
    ;; -------------------- Main API --------------------

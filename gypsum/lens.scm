@@ -377,43 +377,24 @@
 (define (lens-unit-fold fold accum lens)
   ;; Try to perform a fold over every `<UNIT-LENS-TYPE>` values within
   ;; an object LENS. LENS might be of `<LENS-TYPE>` or `<UNIT-LENS-TYPE>`
-  ;; values, or a list or tree of either of the above. A stack of
-  ;; `<LENS-TYPE>` values is recorded during folding in order to prevent
-  ;; accidental infinite recursion, as <LENS-TYPE> values might have
-  ;; been accidentally constructed to contain references to
-  ;; themselves. Of course, this will not prevent infinite recursion
-  ;; if the `<LENS-TYPE>` is encapsulated within a `<UNIT-LENS-TYPE>`, but
-  ;; we can at least prevent infinite recursion from self-referential
-  ;; `<LENS-TYPE>` values.
+  ;; values, or a list or tree of either of the above.
   ;;
-  ;; Note that this operation could update the `RECORD-IN-FOCUS` if
-  ;; any of the `LENSES` are mutating.
+  ;; NOTE that a recursive lens could result in this procedure looping
+  ;; indefinitely, but this is allowed because the lens could be
+  ;; designed to focus on a recursive data structure.
   ;;------------------------------------------------------------------
-  (let loop ((stack '()) (accum accum) (lens lens))
+  (let loop ((accum accum) (lens lens))
     (cond
      ((not lens) accum)
      ((null? lens) accum)
      ((%unit-lens-type? lens) (fold accum lens))
      ((string? lens) (fold accum lens))
      ((integer? lens) (fold accum lens))
-     ((%lens-type? lens)
-      (cond
-       ((member lens stack eq?)
-        (error "compound lens constructor contains self-referential lens" lens stack))
-       (else
-        (let ((stack (cons lens stack)))
-          (vector-fold
-           (lambda (count lens)
-             (loop stack count lens))
-           accum
-           (lens->vector lens))))))
-     ((list? lens)
-      (cond
-       ((member lens stack eq?)
-        (error "compound-lens constructor given circular list argument" lens))
-       (else
-        (let ((stack (cons lens stack)))
-          (loop stack (loop stack accum (car lens)) (cdr lens))))))
+     ((symbol? lens) (fold accum lens))
+     ((%lens-type? lens) ;; Recursively defined lenses
+      (vector-fold (lambda (accum lens) (loop accum lens)) accum (lens->vector lens)))
+     ((list? lens) ;; Recursively defined lenses
+      (loop (loop accum (car lens)) (cdr lens)))
      (else
       (error "compound lens constructor contains at least one non-lens element" lens)))))
 
@@ -1266,7 +1247,7 @@
 ;; -------------------------------------------------------------------------------------------------
 
 (cond-expand
-  ((or gambit guile stklos)
+  ((or guile (library (srfi 111)))
    (define =>box
      ;; Define a lens that updates a box object (see SRFI-111). This will
      ;; work on any closure which takes zero or one argument and which
