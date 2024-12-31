@@ -12,7 +12,8 @@
   ;; IMPORTS
   (import (scheme base))
   (cond-expand
-    (guile-3 (import (srfi 69)))
+    ((or guile-3 gambit) (import (srfi 69)))
+    (stklos (import (srfi 125)))
     (else
      (cond-expand
        ((library (srfi 125)) (import (srfi 125))))
@@ -39,7 +40,7 @@
 
   (begin
     (cond-expand
-      (guile-3
+      ((or guile-3 gambit)
        (define (hash-table-empty? ht)
          (= 0 (hash-table-size ht)))
        )

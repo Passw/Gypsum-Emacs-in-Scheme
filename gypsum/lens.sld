@@ -20,6 +20,8 @@
        (only (srfi 28) format)
        (only (srfi 111) unbox set-box!))
      )
+    (stklos
+     (import (only (srfi 111) unbox set-box!)))
     (else
      ;; Guile does not seem to recognize the (library ...) clause in
      ;; "cond-expand" statements used in "define-library" statements.
@@ -49,7 +51,6 @@
    ;; use unit-lens or record-unit-lens
    %unit-lens-type? %lens-type? unit-lens
    unit-lens-view unit-lens-update unit-lens-set unit-lens-swap
-   unit-lens-getter unit-lens-setter
    record-unit-lens
    unit-lens-getter unit-lens-setter unit-lens-updater unit-lens->expr
    default-unit-lens-setter  default-unit-lens-updater
@@ -90,8 +91,9 @@
    =>view-only-lens
 
    ;; Debugging lenses
-   =>trace =>assert
+   =>trace
    )
+
   (cond-expand
     ((or gambit guile stklos chibi)
      (export =>box)
@@ -101,6 +103,13 @@
   (cond-expand
     (stklos
      (include "./gypsum/lens.scm"))
+    (guile
+     ;; Bug in Guile R7RS: the "else" statement below is not triggered
+     ;; even though none of the other conditions in this "cond-expand"
+     ;; statement are met, so I must specify this Guile condition
+     ;; explicitly or else the "include" statement does not get
+     ;; evaluated.
+     (include "lens.scm"))
     (else
      (include "lens.scm"))
     ))

@@ -11,11 +11,23 @@
         hash-table->alist
         hash-table-walk
         )
-  (only (srfi 64)
-        test-begin test-end
-        test-assert test-equal
-        )
   )
+(cond-expand
+  (stklos
+   (import
+     (only (rapid test)
+           test-begin test-end
+           test-assert test-equal
+           ))
+   )
+  (else
+   (import
+     (only (srfi 64)
+           test-begin test-end
+           test-assert test-equal
+           )))
+  )
+
 
 ;; -------------------------------------------------------------------------------------------------
 

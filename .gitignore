@@ -1,1 +1,5 @@
+.guix-profile*
 *.log
+*.o
+*.o?
+*.ostk

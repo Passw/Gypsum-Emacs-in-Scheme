@@ -25,9 +25,8 @@
      (export match match* -> unquote guard))
     (else
      (export
-      (export
-       match match* -> unquote guard
-       (rename ellipsis ...)))))
+      match match* -> unquote guard
+      (rename ellipsis ...))))
   (include "match.scm"))
 
 ;; Local Variables:

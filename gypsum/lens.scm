@@ -125,15 +125,6 @@
                (update&view (if update&view update&view (default-unit-lens-updater getter setter))))
            (make-unit-lens getter setter update&view *->expr))))))
 
-(cond-expand
-  (guile-3
-   (set-record-type-printer!
-    <unit-lens-type>
-    (lambda (unit-lens port)
-      (display
-       (format "(<unit-lens-type> ~a)" (unit-lens->expr unit-lens))
-       port))))
-  (else))
 
 (define record-unit-lens
   ;; This function constructs a `<UNIT-LENS-TYPE>` from a `GETTER` and
@@ -162,6 +153,17 @@
         getter setter
         (default-unit-lens-updater getter setter)
         label)))))
+
+
+;; (cond-expand
+;;   (guile-3
+;;    (set-record-type-printer!
+;;     <unit-lens-type>
+;;     (lambda (unit-lens port)
+;;       (display
+;;        (format "(<unit-lens-type> ~a)" (unit-lens->expr unit-lens))
+;;        port))))
+;;   (else))
 
 
 (define (unit-lens-view record-in-focus unit-lens)
@@ -1247,7 +1249,7 @@
 ;; -------------------------------------------------------------------------------------------------
 
 (cond-expand
-  ((or guile (library (srfi 111)))
+  ((or guile stklos (library (srfi 111)))
    (define =>box
      ;; Define a lens that updates a box object (see SRFI-111). This will
      ;; work on any closure which takes zero or one argument and which
