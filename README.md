@@ -68,7 +68,7 @@ ways.
     Guix garbage collector). The full command is this:
 
     ```sh
-      guix shell -m ./manifest_guile-gi.scm -- guile --r7rs
+      guix shell -m ./manifest_guile-gi.scm -- guile --r7rs ;
     ```
 
  2. The second way is to installing packages in a local profile
@@ -78,13 +78,16 @@ ways.
     rather than `.venv`.
 
     ```sh
-      guix package -i -p ./.guix-profile -m ./manifest_guile-gi.scm
-      guix shell -p ./.guix-profile -- guile --r7rs
+      guix package -p ./.guix-profile -m ./manifest_guile-gi.scm -i ;
+      guix shell -p ./.guix-profile -- guile --r7rs -L "${PWD}" ;
     ```
 
-    Now the `guix shell` command can use the profile directory, and
-    the package dependencies installed into the profile directory will
-    survive garbage collections.
+    And then, when you see the Guile REPL prompt `scheme@(guile-user)>`
+    you can [run the Scheme programs](#how-to-run).
+
+    Furthermore, the `guix shell` command can use the profile
+    directory, and the package dependencies installed into the profile
+    directory will survive Guix garbage collections.
 
 ### Launch the Guile REPL using `./guile.sh`
 
@@ -96,9 +99,18 @@ Emacs users can set the directory-local variable `geiser-guile-binary`
 to `"./guile.sh"`. The `.dir-locals.el` file in this repository does
 this for you if you choose to use it.
 
+#### (optional) Launch `guile.sh` in a Guix Shell
+
+If you are using Guix Shell according to the steps in the section ["(Optional) Use Guix"](#optional-use-guix), you can run the `guile.sh` script like so:
+
+```sh
+guix shell -p ./.guix-profile -- sh ./guile.sh
+```
+
 ## How to run
 
-Once you have a Guile Scheme REPL running with the Guile-GI
+Once you have a Guile Scheme REPL running and you can see the
+`scheme@(guile-user)>` prompt, and you are sure the Guile-GI
 dependencies available in the `%load-path`, simply load the main
 program into the REPL:
 
@@ -113,6 +125,37 @@ every time `main-guile.scm` is loaded. If you are not hacking the
 Gypsum source code, feel free to delete this flag from the `guile.sh`
 script file so that `load` only builds the application once, and
 launches the application more quickly.
+
+### Double-check the Guile `%load-path`
+
+If you evaluate `,pp %load-path` in the `scheme@(guile-user)>` REPL,
+the load path should look something like this:
+
+```
+scheme@(guile-user)> ,pp %load-path
+$1 = ("/home/user/work-src/gypsum"
+ "/usr/share/guile/3.0"
+ "/usr/share/guile/site/3.0"
+ "/usr/share/guile/site"
+ "/usr/share/guile")
+```
+
+### Double-check the Guile `%load-path` in a Guix Shell
+
+If you evaluate `,pp %load-path` in the `scheme@(guile-user)>` REPL
+that was launched within a Guix Shell, the load path should look
+similar to this, although likely with different hash codes in the
+`/gnu/store`:
+
+```
+scheme@(guile-user)> ,pp %load-path
+$1 = ("/home/user/work-src/gypsum"
+ "/gnu/store/ylbycmajc0sf1pndfnsfql76cr1097iq-profile/share/guile/site/3.0"
+ "/gnu/store/jqrkacxgsaf7b19xqzc2x4d77v27dbc6-guile-3.0.8/share/guile/3.0"
+ "/gnu/store/jqrkacxgsaf7b19xqzc2x4d77v27dbc6-guile-3.0.8/share/guile/site/3.0"
+ "/gnu/store/jqrkacxgsaf7b19xqzc2x4d77v27dbc6-guile-3.0.8/share/guile/site"
+ "/gnu/store/jqrkacxgsaf7b19xqzc2x4d77v27dbc6-guile-3.0.8/share/guile")
+```
 
 ## How to hack
 
