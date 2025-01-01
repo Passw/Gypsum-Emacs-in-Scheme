@@ -30,7 +30,6 @@
        (only (srfi srfi-9 gnu) set-record-type-printer!)))
     )
   (export
-   <bin-hash-table-type>
    *bin-hash-table-init-size*
    *default-make-hash-table*
    *default-key-hash*

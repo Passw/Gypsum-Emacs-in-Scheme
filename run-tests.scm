@@ -1,4 +1,6 @@
 (import
+  (scheme base)
+  (scheme write)
   (rename (scheme load) (load scheme/load))
   (only (scheme repl) interaction-environment))
 

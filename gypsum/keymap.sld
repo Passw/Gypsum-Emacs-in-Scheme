@@ -16,7 +16,6 @@
           indent-by newline-indent line-break)
     (only (gypsum lens vector) vector-copy-with)
     (only (gypsum lens bin-hash-table)
-          <bin-hash-table-type>
           make<bin-hash-table>
           empty-bin-hash-table
           bin-hash-table-size

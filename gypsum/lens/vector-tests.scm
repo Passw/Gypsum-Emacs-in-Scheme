@@ -2,7 +2,7 @@
   (scheme base)
   (gypsum lens)
   (gypsum lens vector)
-  (srfi srfi-64))
+  (srfi 64))
 
 (test-begin "gypsum_lens_vector")
 
