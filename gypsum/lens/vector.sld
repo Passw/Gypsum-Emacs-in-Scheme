@@ -3,7 +3,7 @@
     (scheme base)
     (scheme case-lambda)
     (scheme write)
-    (srfi 1)
+    (only (srfi 1) fold)
     (only (gypsum lens)
           record-unit-lens unit-lens lens
           view lens-set update&view
@@ -39,4 +39,8 @@
    mutable-vector-iterate
    mutable-vector-delete-range!
    vector-copy-with)
-  (include "vector.scm"))
+
+  (cond-expand
+    (stklos (include "./gypsum/lens/vector.scm"))
+    (guile (include "vector.scm"))
+    (else (include "vector.scm"))))

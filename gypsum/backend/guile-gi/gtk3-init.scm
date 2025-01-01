@@ -159,7 +159,7 @@
     ;; Example output of the above format statement after pressing space bar:
     ;;     (key-event #x20 #x41 ())
     (cond
-     ((and (= 0 mod-bits) (char=? unicode #\nul))
+     ((and (= 0 mod-bits) (char=? unicode #\null))
       ;; Ignored because this is a key press of a modifier without an
       ;; accompanying printing character.
       #t)

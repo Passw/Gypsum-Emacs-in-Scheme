@@ -78,13 +78,13 @@
        (char=? tested should-be)))
 
 ;;; For a character (as integer code), find the real character it
-;;; represents or #\nul if out of range.  This is used to work with
+;;; represents or #\null if out of range.  This is used to work with
 ;;; Scheme character functions like char-numeric?.
 
 (define (real-character chr)
   (if (< chr 256)
       (integer->char chr)
-      #\nul))
+      #\null))
 
 ;;; Return the control modified version of a character.  This is not
 ;;; just setting a modifier bit, because ASCII conrol characters must be

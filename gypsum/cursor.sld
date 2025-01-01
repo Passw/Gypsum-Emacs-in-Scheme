@@ -6,12 +6,7 @@
           record-unit-lens view endo-set
           =>assoc-by =>bring =>find
           )
-    )
-  (cond-expand
-    ((or guile gambit stklos)
-     (import
-       (only (srfi 69) hash-table? hash-table->alist)
-       ))
+    (only (gypsum hash-table) hash-table? hash-table->alist)
     )
   (export
    new-cursor  maybe-new-cursor  new-cursor-if-iterable
@@ -23,9 +18,14 @@
    cursor-interface
    make<cursor-interface>
    cursor-report-end
-   cursor-reference
+   cursor-referencer
    cursor-stepper
    cursor-jumper
    declare-interface/cursor
    )
-  (include "cursor.scm"))
+
+  (cond-expand
+    (stklos (include "./gypsum/cursor.scm"))
+    (guile (include "cursor.scm"))
+    (else (include "cursor.scm"))
+    ))

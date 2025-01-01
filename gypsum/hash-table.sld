@@ -12,8 +12,8 @@
   ;; IMPORTS
   (import (scheme base))
   (cond-expand
-    ((or guile-3 gambit) (import (srfi 69)))
-    (stklos (import (srfi 125)))
+    ((or guile gambit) (import (srfi 69)))
+    ((or stklos chibi) (import (srfi 125)))
     (else
      (cond-expand
        ((library (srfi 125)) (import (srfi 125))))

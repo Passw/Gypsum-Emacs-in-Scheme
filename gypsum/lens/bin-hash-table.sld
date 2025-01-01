@@ -10,11 +10,6 @@
           =>canonical =>encapsulate)
     (only (gypsum pretty)
            pretty print bracketed newline-indent line-break)
-    (only (srfi 28) format)
-    ;; (only (srfi 43) ; standard vector data type
-    ;;       vector-set! make-vector vector-fold vector-ref vector-fold-right)
-    (only (srfi 60) ; Integers as Bits
-          bitwise-ior bitwise-and)
     (only (gypsum hash-table) ; Standard hash tables
           hash-table-empty?
           hash make-hash-table alist->hash-table hash-table->alist
@@ -28,6 +23,7 @@
      (import
        (only (srfi 28) format)
        (only (srfi srfi-9 gnu) set-record-type-printer!)))
+    (else)
     )
   (export
    *bin-hash-table-init-size*

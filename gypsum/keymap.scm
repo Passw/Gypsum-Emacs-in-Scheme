@@ -4,7 +4,7 @@
 ;; =================================================================================================
 
 (define *unicode-max-code-point* (integer->char #x10FFFF))
-(define *unicode-min-code-point* #\nul)
+(define *unicode-min-code-point* #\null)
 
 (define (*->expr thing)
   (cond
@@ -321,7 +321,7 @@
              (let ((c (char-index ix)))
                (cond
                 ((string? c)
-                 (cons #\nul (loop (next-index ix))))
+                 (cons #\null (loop (next-index ix))))
                 ((char? c)
                  (let*((i (char->integer c))
                        (mod (mod-index ix))

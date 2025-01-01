@@ -1,5 +1,4 @@
 (define-library (gypsum keymap)
-  ;;(include-library-declarations "keymap.imports.sld")
   (import
     (scheme base)
     (scheme char)
@@ -31,14 +30,6 @@
     (only (srfi 1) fold concatenate find)
     (only (srfi 13) ; Strings
           string-fold)
-    (only (srfi 28) format)
-    (only (srfi 34) ; Exception Handling for Programs
-          raise)
-    (only (srfi 43) ; standard vector data type
-          vector-set! make-vector vector-copy
-          vector-fold vector-ref vector-fold-right)
-    (only (srfi 60) ; Integers as Bits
-          bitwise-ior bitwise-and)
     (only (gypsum hash-table)
           hash-table-empty?
           string-hash alist->hash-table hash-table->alist
@@ -48,13 +39,38 @@
     )
 
   (cond-expand
+    ((or guile (library (srfi 28)))
+     (import (only (srfi 28) format))
+     )
+    (else (import (only (rapid format) format)))
+    )
+
+  (cond-expand
+    (gambit
+     ;; do nothing: SRFI 60 APIs are built-in to Gambit,
+     ;; but the library (srfi 60) is not provided.
+     )
+    ((or guile (library (srfi 60)))
+     (import
+       (only (srfi 60) ; Integers as Bits
+             bitwise-ior
+             bitwise-and))
+     )
+    ((or chibi (library (srfi 151)))
+     (import
+       (only (srfi 151) ; Integers as Bits
+             bitwise-ior
+             bitwise-and))
+     )
+    )
+
+  (cond-expand
     (guile-3
      (import
        (only (srfi srfi-9 gnu) set-record-type-printer!)))
     (else))
 
   (export
-   <char-table-type>
    char-table
    char-table-type?
    empty-char-table
@@ -67,7 +83,6 @@
    =>char-table-char!
    char-table-copy
 
-   <keymap-index-type>
    alist->keymap-layer
    keymap-index-type?
    keymap-index
@@ -82,7 +97,6 @@
    ctrl-bit meta-bit super-bit hyper-bit alt-bit
    modifier->integer
 
-   <keymap-layer-type>
    keymap-layer-type?
    keymap-layer
    keymap-layer->alist
@@ -98,19 +112,16 @@
    *unicode-max-code-point*
    *unicode-min-code-point*
 
-   <keymap-index-predicate-type>
    make<keymap-index-predicate>
    keymap-index-predicate-type?
    new-self-insert-keymap-layer
    apply-keymap-index-predicate
 
-   <keymap-type>
    keymap-type?
    =>keymap-label!
    keymap keymap-lookup keymap->layers-list
    keymap-print
 
-   <modal-lookup-state-type>
    modal-lookup-state-type?
    new-modal-lookup-state
    modal-lookup-state-key-index

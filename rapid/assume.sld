@@ -16,6 +16,8 @@
 ;;> Assumptions compatible with SRFI 145.
 
 (define-library (rapid assume)
-  (export assume)
   (import (scheme base))
-  (include "assume.scm"))
+  (export assume)
+  (cond-expand
+    (stklos (include "rapid/assume.scm"))
+    (else (include "assume.scm"))))

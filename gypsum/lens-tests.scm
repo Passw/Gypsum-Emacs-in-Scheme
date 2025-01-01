@@ -20,6 +20,8 @@
            test-assert test-equal
            ))
    )
+  (gambit
+   (import (srfi 64)))
   (else
    (import
      (only (srfi 64)

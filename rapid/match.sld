@@ -17,17 +17,33 @@
 
 (define-library (rapid match)
   (import
-    (scheme base)
-    (rename (scheme base) (... ellipsis))
-	  (rapid assume))
+    (rename (scheme base) (|...| ellipsis))
+    (except (scheme base) |...|)
+    (rapid assume))
+
   (cond-expand
     (guile
-     (export match match* -> unquote guard))
+     (export
+      match match* |->| unquote guard
+      ))
     (else
      (export
-      match match* -> unquote guard
-      (rename ellipsis ...))))
-  (include "match.scm"))
+      match match* |->| unquote guard
+      (rename ellipsis |...|)
+      ))
+    )
+
+  (cond-expand
+    (guile (include "match.scm"))
+    (stklos (include "./rapid/match.scm"))
+    (gambit
+     ;; Gambit's "syntax-rules" is not R7RS-compliant, load a modified
+     ;; version of the pattern matcher
+     (include "match-gambit.scm")
+     )
+    (else (include "match.scm"))
+    ))
+
 
 ;; Local Variables:
 ;; eval: (put 'match 'scheme-indent-function 1)

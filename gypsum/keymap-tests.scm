@@ -6,11 +6,36 @@
   (only (gypsum pretty)
         pretty print qstr repeat join-by bracketed
         indent-by newline-indent line-break)
-  (only (srfi 60) ; Integers as Bits
-        bitwise-ior bitwise-and)
-  (only (srfi 64)  ; test suite
-        test-begin test-end test-assert test-eq test-equal
-        )
+  )
+(cond-expand
+  ((library (srfi 64))
+   (import
+     (only (srfi 64)  ; test suite
+           test-begin test-end test-assert test-eq test-equal
+           )))
+  (else
+   (import
+     (only (rapid test)
+           test-begin test-assert test-eq test-equal))
+   ))
+
+(cond-expand
+  (gambit
+   ;; do nothing: Gambit provides the SRFI-60 APIs
+   ;; but not the (SRFI 60) library.
+   )
+  ((library (srfi 60))
+   (import
+     (only (srfi 60) ; Integers as Bits
+           bitwise-ior
+           bitwise-and)))
+  ((library (srfi 151))
+   (import
+     (only (srfi 151) ; Integers as Bits
+           bitwise-ior
+           bitwise-and)))
+  (else
+   (error "SRFI-60 bitwise operators are not provided"))
   )
 
 (test-begin "gypsum_keymap")
@@ -43,7 +68,7 @@
 (test-equal "zzz" (char-table-view kt #\Z))
 
 (test-assert (not (char-table-view kt #\X)))
-(test-assert (not (char-table-view kt #\nul)))
+(test-assert (not (char-table-view kt #\null)))
 
 (char-table-update! (lambda (_) (values "[Z]" #f)) kt #\Z)
 (test-equal "[Z]" (char-table-view kt #\Z))
@@ -171,16 +196,16 @@
 ;; -------------------------------------------------------------------------------------------------
 ;; testing keymap-index->ascii
 
-(test-equal (list->string '(#\esc #\nul))
+(test-equal (list->string '(#\esc #\null))
   (keymap-index->ascii (keymap-index '(ctrl meta #\@))))
 
-(test-equal (list->string '(#\nul))
+(test-equal (list->string '(#\null))
   (keymap-index->ascii (keymap-index '(ctrl #\@))))
 
 (test-equal (list->string '(#\a #\b #\c #\newline))
   (keymap-index->ascii (keymap-index '(#\a #\b #\c ctrl #\J))))
 
-(test-equal (list->string '(#\nul))
+(test-equal (list->string '(#\null))
   (keymap-index->ascii (keymap-index '(ctrl #\@))))
 
 ;; -------------------------------------------------------------------------------------------------
