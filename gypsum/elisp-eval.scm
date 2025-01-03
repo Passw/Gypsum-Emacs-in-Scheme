@@ -3,6 +3,33 @@
   (make-parameter (new-empty-environment *default-obarray-size*)))
 
 
+(define =>elisp-symbol!
+  ;; This lens looks-up a symbol in the environment, including the
+  ;; stack, so it can operate on an environment returned by a
+  ;; breakpoint within a debugger and will resolve the same symbols
+  ;; that would be resolved by the chain of function evaluation up to
+  ;; the breakpoint.
+  ;;------------------------------------------------------------------
+  (let ((getter
+         (lambda (sym)
+           (view
+            (*the-environment*)
+            (=>env-symbol! (symbol->string sym)))))
+        (updater
+         (lambda (updater sym)
+           (update&view
+            updater
+            (*the-environment*)
+            (=>env-symbol! (symbol->string sym)))
+           )))
+    (unit-lens
+     getter
+     (default-unit-lens-setter updater)
+     updater
+     '=>elisp-symbol!))
+  )
+
+
 (define (elisp-intern! . assocs)
   ;; This procedure is exported, so mostly used by users of this
   ;; library to directly update an Emacs Lisp environment from within

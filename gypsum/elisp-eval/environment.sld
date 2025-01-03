@@ -58,7 +58,7 @@
    env-push-new-elstkfrm!
    env-pop-elstkfrm!
    env-resolve-function
-   env-sym-lookup ;; TODO: replace with a lens?
+   =>env-symbol!
    env-intern!    ;; TODO: replace with a lens?
    env-setq-bind! ;; TODO: replace with a lens?
    *default-obarray-size*

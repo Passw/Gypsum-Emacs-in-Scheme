@@ -442,59 +442,6 @@
     elstkfrm))
 
 
-(define (env-sym-lookup st name)
-  (or (view st =>env-lexstack*! (=>stack! name #f))
-      (view st =>env-dynstack*! (=>stack! name #f))
-      (view st (=>env-obarray-key! name))
-      ))
-
-
-(define (env-sym-update updater st name)
-  (let-values
-      (((stack return)
-        (update&view updater
-         st =>env-lexstack*! (=>stack! name #f))
-        ))
-    (cond
-     ((not return)
-      (let-values
-          (((stack return)
-            (update&view updater
-             st =>env-dynstack*! (=>stack! name #f))
-            ))
-        (cond
-         ((not return)
-          (update&view updater st (=>env-obarray-key! name))
-          )
-         (else (values st (car return)))
-         )))
-     (else (values st (car return)))
-     )))
-
-
-(define (=>env-symbol! name)
-  ;; A lens that looks up a symbol in the lexical stack, dynamic
-  ;; stack, or global obarray, and if non exist, a new symbol may be
-  ;; interned into the global obarray if the next composed lens
-  ;; returns a non-empty symbol object.
-  (let ((getter (lambda (st) (env-sym-lookup st name)))
-        (updater
-         (lambda (updater st)
-           (env-sym-update
-            (lambda (updater obj)
-              (if (not obj)
-                  (updater (new-symbol name))
-                  (updater obj)))
-            st name)))
-        )
-    (unit-lens
-     getter
-     (default-unit-lens-setter updater)
-     updater
-     `(=>env-symbol ,name))
-    ))
-
-
 (define (env-dynstack-update updater st name newsym)
   ;; Part of the Elisp "SETQ" semantics. This procedure tries to
   ;; update just the dynamic variable stack. If there is no variable
@@ -506,7 +453,7 @@
     (=>stack! name (lambda () (newsym updater st name)))))
 
 
-(define (env-stack-update updater st name newsym)
+(define (env-sym-update updater st name newsym)
   ;; Part of the Elisp "SETQ" semantics. This procedure updates the
   ;; lexical variable stack, or if in dynamic binding mode, updating
   ;; the dynamic variable stack. If there is no variable bound to
@@ -518,6 +465,13 @@
        updater st =>env-lexstack*!
        (=>stack! name (lambda () (env-dynstack-update updater st name newsym))))
       (env-dynstack-update updater st name newsym)))
+
+
+(define (env-sym-lookup st name)
+  (or (view st =>env-lexstack*! (=>stack! name #f))
+      (view st =>env-dynstack*! (=>stack! name #f))
+      (view st (=>env-obarray-key! name))
+      ))
 
 
 (define (env-intern! updater st name)
@@ -534,13 +488,32 @@
      return)))
 
 
+(define (=>env-symbol! name)
+  ;; A lens that looks up a symbol in the lexical stack, dynamic
+  ;; stack, or global obarray, and if non exist, a new symbol may be
+  ;; interned into the global obarray if the next composed lens
+  ;; returns a non-empty symbol object.
+  (let ((getter
+         (lambda (st) (env-sym-lookup st name)))
+        (updater
+         (lambda (updater st)
+           (env-sym-update updater st name env-intern!)))
+        )
+    (unit-lens
+     getter
+     (default-unit-lens-setter updater)
+     updater
+     `(=>env-symbol ,name))
+    ))
+
+
 (define (env-setq-bind! st updater name)
   ;; This procedure implements the `SETQ` semantics. It tries to
   ;; update an existing symbol bound to `NAME` anywhere in the lexical
   ;; stack, the dynamic stack, or the global "obarray", but if no such
   ;; `NAME` is bound anywhere, a new symbol is initerned in the global
   ;; obarray.
-  (env-stack-update updater st name env-intern!))
+  (env-sym-update updater st name env-intern!))
 
 
 (define (hash-env-intern-soft hash name)

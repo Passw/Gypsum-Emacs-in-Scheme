@@ -38,19 +38,14 @@
           elisp-unquote-scheme
           scheme->elisp  elisp->scheme  elisp-null?
           pure  pure*  pure*-typed  pure*-numbers
-          new-empty-environment
-          elisp-environment-type?
-          env-push-new-elstkfrm!
-          env-pop-elstkfrm!
-          env-resolve-function
-          env-sym-lookup  ;; TODO: replace with a lens?
-          env-intern!     ;; TODO: replace with a lens?
-          env-setq-bind!  ;; TODO: replace with a lens?
-          elstkfrm-from-args
-          elstkfrm-sym-intern!
+          new-empty-environment   elisp-environment-type?
+          env-push-new-elstkfrm!   env-pop-elstkfrm!
+          env-resolve-function   env-intern!   env-setq-bind!
+          elstkfrm-from-args   elstkfrm-sym-intern!
           *default-obarray-size*
           *elisp-input-port*  *elisp-output-port*  *elisp-error-port*
-          =>interp-cur!  =>interp-env!  =>interp-stk!  =>env-obarray-key!
+          =>interp-cur!  =>interp-env!  =>interp-stk!
+          =>env-obarray-key!   =>env-symbol!
           =>env-lexstack*!  =>env-obarray*!  =>env-lexical-mode?!
           sym-type?  new-symbol
           =>sym-name  =>sym-value*!  =>sym-function*!  =>sym-plist*!
@@ -98,6 +93,7 @@
 
    ;; The interpreter
    elisp-eval!  elisp-load!  eval-iterate-forms
+   =>elisp-symbol!
 
    ;; Re-exporting symbols from (GYPSUM ELISP-EVAL ENVIRONMENT):
    ;;------------------------------------------------------------
@@ -110,6 +106,7 @@
 
    ;; Environment objects
    elisp-environment-type?  elisp-intern!   =>env-obarray-key!
+   =>env-symbol!
 
    *the-environment*
    *default-obarray-size*
