@@ -147,15 +147,6 @@
   (env-pop-elstkfrm! (*the-environment*)))
 
 
-(define (eval-sym-lookup sym)
-  ;; This procedure is exported, so mostly used by users of this
-  ;; library to lookup an Emacs Lisp environment symbol from within a
-  ;; Scheme procedure without having to use `ELISP-EVAL!`. This
-  ;; procedure will return an Emacs Lisp symbol object of type
-  ;; `<SYM-TYPE>` or `#f` if nothing is bound to the symbol.
-  (env-sym-lookup (*the-environment*) sym))
-
-
 (define (eval-apply-proc func arg-exprs)
   ;; This is how built-in Scheme procedure are applied from within Emacs Lisp.
   (let loop ((arg-exprs arg-exprs) (arg-vals '()))
@@ -229,7 +220,7 @@
     (,literal
      (cond
       ((symbol? literal)
-       (let ((return (eval-sym-lookup (symbol->string literal))))
+       (let ((return (view literal =>elisp-symbol!)))
          (cond
           ((not return) (eval-error "void variable" literal))
           ((sym-type? return) (view return =>sym-value*!))
@@ -927,7 +918,7 @@
               )
           (cond
            ((symbol? arg)
-            (let ((result (eval-sym-lookup (symbol->string arg))))
+            (let ((result (view arg =>elisp-symbol!)))
               (cond
                ((sym-type? result) (view result =>sym-function*!))
                ((lambda-type? result) result)

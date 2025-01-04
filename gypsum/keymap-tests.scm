@@ -8,6 +8,11 @@
         indent-by newline-indent line-break)
   )
 (cond-expand
+  (guile
+   ;; There is a bug in Guile `cond-expand`, if Guile tries to
+   ;; evaluate the next conditional clause it fails. This conditional
+   ;; clause exists to prevent the next clause from being evaluated.
+   )
   ((library (srfi 64))
    (import
      (only (srfi 64)  ; test suite
@@ -20,6 +25,14 @@
    ))
 
 (cond-expand
+  (guile
+   ;; This conditional clause exists because the (library (srfi 60))
+   ;; condition causes a bug in Guile.
+   (import
+     (only (srfi 60) ; Integers as Bits
+           bitwise-ior
+           bitwise-and))
+   )
   (gambit
    ;; do nothing: Gambit provides the SRFI-60 APIs
    ;; but not the (SRFI 60) library.
