@@ -169,4 +169,49 @@
 (elstkfrm-trial '() '(zero one) 'rest '(0 1 2 3))
 (test-assert (elstkfrm-expect '((rest 2 3) (one . 1) (zero . 0)) 3 #f))
 
+(env-push-new-elstkfrm!
+ test-elisp-env 3
+ (list (new-symbol "zero" 0)
+       (new-symbol "one"  1)
+       (new-symbol "two"  2)))
+(test-equal 2
+  (view test-elisp-env =>env-lexstack*! =>car (=>hash-key! "two") =>sym-value*!)
+  )
+(test-equal (list 2 1 0)
+  (let ((lookup
+         (lambda (name)
+           (view
+            test-elisp-env
+            (=>env-symbol! name)
+            =>sym-value*!)))
+        )
+    (list
+     (lookup "two")
+     (lookup "one")
+     (lookup "zero")
+     )))
+
+(lens-set #f test-elisp-env =>env-lexical-mode?!)
+(env-push-new-elstkfrm!
+ test-elisp-env 3
+ (list (new-symbol "three" 3)
+       (new-symbol "four"  4)
+       (new-symbol "five"  5)))
+
+(test-equal (list 3 4 5)
+  (let ((lookup
+         (lambda (name)
+           (view
+            test-elisp-env
+            (=>env-symbol! name)
+            =>sym-value*!)))
+        )
+    (list
+     (lookup "three")
+     (lookup "four")
+     (lookup "five")
+     )))
+
+(lens-set #t test-elisp-env =>env-lexical-mode?!)
+
 (test-end "gypsum_elisp_eval_environment_tests")

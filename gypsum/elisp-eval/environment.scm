@@ -375,12 +375,13 @@
   ;; This is the environment object used for the Emacs Lisp evaluator.
   ;; Use `NEW-ENVIRONMENT` to construct an object of this type.
   ;;------------------------------------------------------------------
-  (make<elisp-environment> env dyn lex mode)
+  (make<elisp-environment> env dyn lex flag mode)
   elisp-environment-type?
-  (env  env-obarray   set!env-obarray)  ;;environment (obarray)
-  (dyn  env-dynstack  set!env-dynstack) ;;dynamically bound variable stack frames
-  (lex  env-lexstack  set!env-lexstack) ;;lexically bound variable stack frames
-  (mode env-lxmode    set!env-lxmode)   ;;lexical binding mode
+  (env   env-obarray   set!env-obarray)  ;;environment (obarray)
+  (dyn   env-dynstack  set!env-dynstack) ;;dynamically bound variable stack frames
+  (lex   env-lexstack  set!env-lexstack) ;;lexically bound variable stack frames
+  (flag  env-stkflags  set!env-stkflags) ;;bits indicating stack frame type
+  (mode  env-lxmode    set!env-lxmode)   ;;lexical binding mode
   )
 
 (define *elisp-input-port* (make-parameter (current-input-port)))
@@ -403,31 +404,53 @@
 (define =>env-lexical-mode?!
   (record-unit-lens env-lxmode set!env-lxmode '=>env-lexical-mode?!))
 
-(define =>env-stack-lens*!
-  ;; Select a lens for the lexical or dynamic variable stack depending
-  ;; on the current lexical binding mode.
-  (let ((getter
-         (lambda (st)
-           (if (env-lxmode st)
-               (view st =>env-lexstack*!)
-               (view st =>env-dynstack*!))))
-        (updater
-         (lambda (updater st)
-           (if (env-lxmode st)
-               (update&view updater st =>env-lexstack*!)
-               (update&view updater st =>env-dynstack*!))))
-        )
-    (unit-lens
-     getter
-     (default-unit-lens-setter updater)
-     updater
-     '=>env-stack-lens*!)))
+
+(define (print-stack-frames st)
+  (define (print-pair pair)
+    (let ((label (car pair))
+          (symbol (cdr pair))
+          )
+      (print
+       (line-break)
+       (bracketed
+        2 #\( #\)
+        (qstr label) " . "
+        (qstr
+         (if (sym-type? symbol)
+             (sym-value symbol)
+             symbol)))
+       )))
+  (define (print-1frame frame)
+    (apply print (map print-pair (hash-table->alist frame)))
+    )
+  (define (print-frames frames)
+    (apply print
+     (let loop ((n 0) (frames (reverse frames)))
+       (cond
+        ((pair? frames)
+         (cons
+          (print
+           (bracketed 2 #\( #\) "frame " n (print-1frame (car frames)))
+           (line-break))
+          (loop (+ 1 n) (cdr frames))))
+        ((null? frames) '())
+        (else (error "not a frame" frames))
+        ))))
+  (print
+   ";;---- dynstack ------------------" (line-break)
+   (print-frames (env-dynstack st)) (line-break)
+   ";;---- lexstack ------------------" (line-break)
+   (print-frames (env-lexstack st))
+   ))
 
 
 (define (env-pop-elstkfrm! st)
-  (update
-   (lambda (stack) (if (null? stack) '() (cdr stack)))
-   st =>env-stack-lens*!))
+  (let ((lxmode (bit-stack-pop! (env-stkflags st)))
+        (pop (lambda (stack) (if (null? stack) '() (cdr stack))))
+        )
+    (unless lxmode (update pop st =>env-dynstack*!))
+    (update pop st =>env-lexstack*!)
+    ))
 
 
 (define (env-push-new-elstkfrm! st size bindings)
@@ -435,10 +458,12 @@
   ;; the appropriate stack (lexical or dynamic stack). Return the
   ;; empty stack frame that was pushed so it can be updated by the
   ;; calling procedure.
-  (let ((elstkfrm (new-elstkfrm size bindings)))
-    (update
-     (lambda (stack) (cons elstkfrm stack))
-     st =>env-stack-lens*!)
+  (let ((lxmode (env-lxmode st))
+        (elstkfrm (new-elstkfrm size bindings)))
+    (update (lambda (stack) (cons elstkfrm stack)) st =>env-lexstack*!)
+    (unless lxmode
+      (update (lambda (stack) (cons elstkfrm stack)) st =>env-dynstack*!))
+    (bit-stack-push! (env-stkflags st) lxmode)
     elstkfrm))
 
 
@@ -467,11 +492,18 @@
       (env-dynstack-update updater st name newsym)))
 
 
+(define (pdebug name where found)
+  (display ";; found ")(write name)
+  (display " in ")(display where)
+  (display ": ")(write found)(newline)
+  )
+
 (define (env-sym-lookup st name)
-  (or (view st =>env-lexstack*! (=>stack! name #f))
-      (view st =>env-dynstack*! (=>stack! name #f))
-      (view st (=>env-obarray-key! name))
-      ))
+  (or
+   (view st =>env-lexstack*! (=>stack! name #f))
+   (view st =>env-dynstack*! (=>stack! name #f))
+   (view st (=>env-obarray-key! name))
+   ))
 
 
 (define (env-intern! updater st name)
@@ -546,14 +578,15 @@
   (case-lambda
     (() (new-empty-obarray *default-obarray-size*))
     ((size) (make-hash-table string=? string-hash #:weak #f size))
-    )
-  )
+    ))
 
 
 (define new-empty-environment
   (case-lambda
     (() (new-empty-environment *default-obarray-size*))
-    ((size) (make<elisp-environment> (new-empty-obarray size) '() '() #t))))
+    ((size)
+     (make<elisp-environment>
+      (new-empty-obarray size) '() '() (new-bit-stack) #t))))
 
 
 ;;--------------------------------------------------------------------------------------------------

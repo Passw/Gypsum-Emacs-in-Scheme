@@ -259,6 +259,26 @@
    '(let ((a (make-symbol "hello")))
       (symbol-name a))))
 
+(test-equal '(3.0 7.0 2.0)
+  (test-elisp-eval!
+   '(progn
+     (defun linear-transform-3D (x y z)
+       (let ((x (+ (* -1   x) (*  2 y) (* 0.5 z)))
+             (y (+ (*  1.5 x) (* -1 y) (* 2   z)))
+             (z (+ (* -0.5 x) (*  1 y) (* 0.5 z))))
+         (list x y z)))
+     (linear-transform-3D 4 3 2)
+     )))
+
+(test-equal '(1 2 4 8)
+  (test-elisp-eval!
+   '(let*((a 1)
+          (b (* a 2))
+          (c (* b 2))
+          (d (* c 2)))
+      (list a b c d)
+      )))
+
 ;;--------------------------------------------------------------------------------------------------
 
 (define (test-elisp-eval-both-ports! expr)

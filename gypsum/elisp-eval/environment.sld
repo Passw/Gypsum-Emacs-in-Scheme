@@ -14,6 +14,11 @@
     (only (scheme write) display write)
     (only (srfi 1) assq)
     (only (gypsum editor command) command-type? command-procedure)
+    (only (gypsum bit-stack)
+          new-bit-stack
+          bit-stack-push!
+          bit-stack-pop!
+          bit-stack-look)
     (only (gypsum hash-table)
           hash-table?
           hash-table-empty?
@@ -33,6 +38,7 @@
           *default-hash-table-constructor*
           default-unit-lens-updater  default-unit-lens-setter
           =>canonical  =>view-only-lens  =>hash-key!  =>hash-key*!)
+    (only (gypsum pretty) pretty print bracketed line-break qstr)
     (only (gypsum lens vector) mutable-vector-type?)
     (only (gypsum cursor)
           new-cursor  cursor-ref  cursor-step!
@@ -59,8 +65,9 @@
    env-pop-elstkfrm!
    env-resolve-function
    =>env-symbol!
-   env-intern!    ;; TODO: replace with a lens?
-   env-setq-bind! ;; TODO: replace with a lens?
+   env-intern!    ;; implements the ELisp `intern` function
+   env-setq-bind! ;; implements the ELisp `setq` macro
+   print-stack-frames
    *default-obarray-size*
    *elisp-input-port*
    *elisp-output-port*
