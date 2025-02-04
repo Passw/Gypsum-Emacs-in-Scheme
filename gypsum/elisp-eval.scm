@@ -81,13 +81,18 @@
   ;;     exception.
   ;;------------------------------------------------------------------
   (case-lambda
-    ((expr) (elisp-eval! expr (*the-environment*)))
+    ((expr) (elisp-eval! expr #f))
     ((expr env)
      (call/cc
       (lambda (halt-eval)
-        (parameterize
-            ((raise-error-impl* halt-eval))
-          (eval-form (scheme->elisp expr))))))))
+        (let ((run
+               (lambda ()
+                 (parameterize ((raise-error-impl* halt-eval))
+                   (eval-form (scheme->elisp expr)))
+                 )))
+          (if (not env) (run)
+              (parameterize ((*the-environment* env)) (run))
+              )))))))
 
 
 (define (eval-iterate-forms st port use-form)
@@ -623,7 +628,6 @@
             (else #f)
             )))
         )
-    (display ";; defalias: #:sym ")(write sym)(display " #:func ")(write func)(newline);;DEBUG
     (cond
      ((not func) (eval-error "void function" val))
      ((not sym) (eval-error "wrong type argument" sym #:expecting "symbol"))
