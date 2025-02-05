@@ -86,7 +86,7 @@
    ensure-string  symbol/string?  any-symbol?
 
    ;; Function objects
-   lambda-type?  new-lambda
+   lambda-type?  new-lambda  lambda-copy-into!
    =>lambda-kind!  =>lambda-args!  =>lambda-optargs!  =>lambda-rest!
    =>lambda-docstring!  =>lambda-declares!  =>lambda-lexenv!  =>lambda-body!
    =>lambda-declares*!  =>lambda-interactive*!

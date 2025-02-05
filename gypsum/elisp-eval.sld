@@ -52,7 +52,7 @@
           =>sym-value!  =>sym-function!  =>sym-plist!
           ensure-string  symbol/string?  any-symbol?
           nil  t
-          lambda-type?  new-lambda
+          lambda-type?  new-lambda  lambda-copy-into!
           =>lambda-kind!  =>lambda-args!
           =>lambda-optargs!  =>lambda-rest!
           =>lambda-docstring!  =>lambda-declares!

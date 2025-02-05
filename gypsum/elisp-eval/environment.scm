@@ -166,6 +166,18 @@
       docstr #f #f #f body))
     ))
 
+(define (lambda-copy-into! to from)
+  (set!lambda-kind        to (lambda-kind from))
+  (set!lambda-args        to (lambda-args from))
+  (set!lambda-optargs     to (lambda-optargs from))
+  (set!lambda-rest        to (lambda-rest from))
+  (set!lambda-docstring   to (lambda-docstring from))
+  (set!lambda-declares    to (lambda-declares from))
+  (set!lambda-interactive to (lambda-interactive from))
+  (set!lambda-lexenv      to (lambda-lexenv from))
+  (set!lambda-body        to (lambda-body from))
+  )
+
 (define (canon-lambda unit) (=>canonical unit new-lambda empty-lambda?))
 
 (define =>lambda-kind! (canon-lambda =>lambda-kind*!))
