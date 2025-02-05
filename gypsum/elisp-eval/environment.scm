@@ -61,7 +61,7 @@
     ((name val) (new-symbol name val #f))
     ((name val func)
      (cond
-      ((string? name) (make<sym> name val func '()))
+      ((string? name) (make<sym> name val func #f))
       (else (error "not a string" name))))))
 
 

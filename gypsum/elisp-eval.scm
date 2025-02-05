@@ -623,7 +623,6 @@
         (val (eval-form val-expr))
         (func
          (let loop ((val val))
-           (display ";; defalias: sym=")(write sym)(display " val=")(write val)(newline);;DEBUG
            (cond
             ((symbol? val)
              (loop (view st (=>env-obarray-key! (symbol->string val)))))
@@ -638,7 +637,6 @@
      ((not func) (eval-error "void function" val))
      ((not sym) (eval-error "wrong type argument" sym #:expecting "symbol"))
      (else
-      (display ";; defalias: func=")(write func)(newline);;DEBUG
       (lens-set! func sym =>sym-function*!))
      )))
 
@@ -869,13 +867,16 @@
    (lambda (obj) (values (lens-set val obj (=>sym-value! sym)) val))))
 
 (define (eval-get st sym prop)
-  (view-on-symbol st sym (lambda (obj) (view obj (=>hash-key! prop)))))
+  (view-on-symbol st sym
+   (lambda (obj)
+     (view obj (=>sym-plist! sym) (=>hash-key! prop)))))
 
 (define (eval-put st sym prop val)
   (update-on-symbol st sym
-   (let ((prop (ensure-string prop)))
-     (values (lens-set val st (=>env-obarray-key! sym) (=>hash-key! prop)) val)
-     )))
+   (lambda (obj)
+     (let ((prop (ensure-string prop)))
+       (values (lens-set! val obj (=>sym-plist! sym) (=>hash-key! prop)) val)
+       ))))
 
 (define (eval-boundp st sym)
   (view-on-symbol st sym (lambda (obj) (not (not (view obj (=>sym-value! sym)))))))
