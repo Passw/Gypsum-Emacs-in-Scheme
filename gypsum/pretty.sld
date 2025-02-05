@@ -48,6 +48,8 @@
           mutable-vector-append! mutable-vector-fold/index)
     )
   (export
+   pp-type?
+
    pp-quoted-type? qstr
 
    print repeat indent-by line-break

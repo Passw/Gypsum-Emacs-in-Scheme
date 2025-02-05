@@ -29,7 +29,7 @@
           new-cursor  cursor-ref  cursor-step!
           cursor-end?  cursor-type?
           cursor-collect-list  new-cursor-if-iterable)
-    (only (rapid match) match match* -> unquote guard)
+    (only (rapid match) match)
     (prefix (gypsum editor-impl) *impl/)
     (only (gypsum elisp-eval parser) read-elisp)
     (only (gypsum elisp-eval environment)

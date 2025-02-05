@@ -129,7 +129,7 @@
 (define elisp-load!
   (case-lambda
     ((filepath)
-     (elisp-load filepath (*the-environment*))
+     (elisp-load! filepath (*the-environment*))
      )
     ((filepath st)
      (eval-iterate-forms st filepath
@@ -666,6 +666,7 @@
       (((declare ,args ...) ,body-exprs ...)
        (let loop ((args args))
          (match args
+           (() #t)
            (((,sym ,vals ...) ,args ...)
             (guard (symbol? sym))
             (lens-set vals
