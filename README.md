@@ -6,7 +6,7 @@
 
 Although this project is still incomplete and experimental, the goals of this project are to construct a Scheme app platform similar to Emacs, not just in the UI/UX, but also to be backward compatible (to the greatest degree possible) with GNU Emacs by implementing an Emacs Lisp interpreter as well.
 
-- written in [**portable**](../../../wiki/Portability.md): R7RS Scheme, should run on any compliant Scheme implementation.
+- written in [**portable**](../../../wiki/Portability.md) R7RS Scheme, should run on any compliant Scheme implementation.
 - able to run your `init.el`, run Emacs software pulled from ELPA.
 - use Emacs Regression Tests (ERT) from GNU Emacs to ensure compatibility.
 - encourage the use of the Scheme programming language to develop apps and text editing workflows.

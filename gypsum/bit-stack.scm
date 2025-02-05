@@ -3,7 +3,7 @@
   (make<bit-stack> count bitvec)
   bit-stack-type?
   (count   bit-stack-count   set!bit-stack-count)
-  (bitvec  bit-stacka-bitvec  set!bit-stack-bitvec)
+  (bitvec  bit-stack-bitvec  set!bit-stack-bitvec)
   )
 
 
