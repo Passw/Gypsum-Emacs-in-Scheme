@@ -590,11 +590,10 @@
                   (=>name (=>env-obarray-key! name))
                   (st     (*the-environment*))
                   (obj    (view st =>name))
-                  (obj
-                   (if obj obj
-                       (let ((obj (new-symbol name)))
-                         (lens-set! obj st =>name)
-                         obj)))
+                  (obj    (if obj obj
+                              (let ((obj (new-symbol name)))
+                                (lens-set! obj st =>name)
+                                obj)))
                   )
               (cond
                ((eq? def 'defun) func)
@@ -603,7 +602,13 @@
                )
               (cond
                ((sym-type? obj) ;; update and return the interned symbol object
-                (lens-set func obj =>sym-function*!))
+                (let ((old-func (view obj =>sym-function*!)))
+                  (cond
+                   ((lambda-type? old-func)
+                    (lambda-copy-into! old-func func))
+                   (else
+                    (lens-set func obj =>sym-function*!)))
+                  obj))
                (else (eval-error "failed to intern symbol" sym obj)))
               ))
            (else (eval-error "wrong type argument" sym #:expecting "symbol"))
@@ -618,6 +623,7 @@
         (val (eval-form val-expr))
         (func
          (let loop ((val val))
+           (display ";; defalias: sym=")(write sym)(display " val=")(write val)(newline);;DEBUG
            (cond
             ((symbol? val)
              (loop (view st (=>env-obarray-key! (symbol->string val)))))
@@ -631,7 +637,9 @@
     (cond
      ((not func) (eval-error "void function" val))
      ((not sym) (eval-error "wrong type argument" sym #:expecting "symbol"))
-     (else (lens-set! func sym =>sym-function*!))
+     (else
+      (display ";; defalias: func=")(write func)(newline);;DEBUG
+      (lens-set! func sym =>sym-function*!))
      )))
 
 
