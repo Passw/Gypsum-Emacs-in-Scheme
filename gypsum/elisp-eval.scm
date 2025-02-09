@@ -203,7 +203,10 @@
   (let ((func (env-resolve-function (*the-environment*) head))
         )
     (cond
-     ((macro-type?   func) (apply (macro-procedure func) head arg-exprs))
+     ((syntax-type?  func)
+      (apply (syntax-eval func) head arg-exprs))
+     ((macro-type?   func)
+      (eval-form (apply (macro-procedure func) head arg-exprs)))
      ((lambda-type?  func)
       (let ((return (eval-apply-lambda func arg-exprs)))
         (cond ;; macro expand (if its a macro)
@@ -263,12 +266,12 @@
 ;; built-in macro bahvior a bit more Scheme-like.
 
 (define elisp-progn
-  (make<macro>
+  (make<syntax>
    (lambda expr
      (eval-progn-body (cdr expr)))))
 
 (define elisp-prog1
-  (make<macro>
+  (make<syntax>
    (lambda expr
      (match (cdr expr)
        (() (eval-error "wrong number of arguments" "prog1" 0))
@@ -279,7 +282,7 @@
           ))))))
 
 (define elisp-prog2
-  (make<macro>
+  (make<syntax>
    (lambda expr
      (define (fail-nargs n)
        (eval-error "wrong number of arguments" "prog2" n))
@@ -295,7 +298,7 @@
 
 
 (define (elisp-logic conjunction)
-  (make<macro>
+  (make<syntax>
    (lambda exprs
      (let loop ((exprs (cdr exprs)))
        (match exprs
@@ -313,7 +316,7 @@
 
 
 (define elisp-if
-  (make<macro>
+  (make<syntax>
    (lambda exprs
      (match exprs
        (() (eval-error "wrong number of arguments" "if" 0))
@@ -327,7 +330,7 @@
 
 
 (define elisp-cond
-  (make<macro>
+  (make<syntax>
    (lambda exprs
     (define (eval-cond test body)
       (let ((result (eval-form test)))
@@ -346,7 +349,7 @@
 
 
 (define elisp-while
-  (make<macro>
+  (make<syntax>
    (lambda exprs
      (match (cdr exprs)
        (() (eval-error "wrong number of arguments" "while" 0))
@@ -360,7 +363,7 @@
 
 
 (define elisp-dotimes
-  (make<macro>
+  (make<syntax>
    (lambda exprs
      (define (fail-nargs n)
        (eval-error "wrong number of arguments" "dotimes" n))
@@ -401,7 +404,7 @@
 
 
 (define elisp-dolist
-  (make<macro>
+  (make<syntax>
    (lambda exprs
      (define (fail-nargs n)
        (eval-error "wrong number of arguments" "dolist" n))
@@ -450,7 +453,7 @@
 
 
 (define elisp-setq
-  (make<macro>
+  (make<syntax>
    (lambda  args
      (let ((bind!
             (lambda (sym val)
@@ -487,7 +490,7 @@
 
 
 (define elisp-let
-  (make<macro>
+  (make<syntax>
    (lambda expr
      (let ((st (*the-environment*)))
        (match (cdr expr)
@@ -524,7 +527,7 @@
 
 
 (define elisp-let*
-  (make<macro>
+  (make<syntax>
    (lambda expr
      (let ((st (*the-environment*)))
        (match (cdr expr)
@@ -562,7 +565,7 @@
 
 
 (define elisp-lambda
-  (make<macro>
+  (make<syntax>
    (lambda expr
      (let ((expr (cdr expr)))
        (match expr
@@ -574,7 +577,7 @@
 
 
 (define elisp-defun-defmacro
-  (make<macro>
+  (make<syntax>
    (lambda expr
      (let ((def  (car expr))
            (expr (cdr expr))
@@ -642,7 +645,7 @@
 
 
 (define elisp-defalias
-  (make<macro>
+  (make<syntax>
    (lambda expr
      (match (cdr expr)
        ((,sym-expr ,val-expr) (eval-defalias sym-expr val-expr #f))
@@ -923,7 +926,7 @@
 (define (elisp-apply . args) (eval-apply re-collect-args args))
 
 (define elisp-function
-  (make<macro>
+  (make<syntax>
    (lambda args
      (match args
        ((,arg)
@@ -1081,7 +1084,7 @@
 
 
 (define elisp-quote
-  (make<macro>
+  (make<syntax>
    (lambda args
      (match (cdr args)
        ((,expr) expr)
@@ -1091,7 +1094,7 @@
 
 
 (define elisp-backquote
-  (make<macro>
+  (make<syntax>
    (lambda exprs
      (match (cdr exprs)
        ((,exprs)

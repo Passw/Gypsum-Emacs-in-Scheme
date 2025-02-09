@@ -106,9 +106,33 @@
 ;; Built-in Macro types
 
 (define-record-type <macro-type>
+  ;; This defines a macro, which contains a procedure for which it's
+  ;; arguments are not evaluated, but passed as unevaluated
+  ;; expressions, and must return a form. The returned form is
+  ;; evaluated with a recursive call to `EVAL` to produce the result
+  ;; value of the macro evaluation. In the Emacs Lisp documentation,
+  ;; macros are documented as "Macros". Contrast this with
+  ;; "<syntax-type>" values (described below) which are documented as
+  ;; "Special Forms".
+  ;;------------------------------------------------------------------
   (make<macro> proc)
   macro-type?
   (proc macro-procedure)
+  )
+
+
+(define-record-type <syntax-type>
+  ;; This defines a syntactic form, which contains a procedure for
+  ;; which it's arguments are not evaluated, like a macro, but unlike
+  ;; a macro, returns a value that is not then applied to `EVAL`
+  ;; recursively. In the Emacs Lisp documentation, these syntactic
+  ;; forms are documented as "Special Forms". Contrast this with
+  ;; "<macro-type>" values (described above) which are documented as
+  ;; "Macros".
+  ;;------------------------------------------------------------------
+  (make<syntax> proc)
+  syntax-type?
+  (proc syntax-eval)
   )
 
 ;;--------------------------------------------------------------------

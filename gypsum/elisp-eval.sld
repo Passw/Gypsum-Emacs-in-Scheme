@@ -61,6 +61,7 @@
           =>lambda-body*!  =>lambda-kind*!
           =>lambda-docstring*!
           make<macro>  macro-type?  macro-procedure  elisp-void-macro
+          make<syntax> syntax-type? syntax-eval
           elisp-eval-error-type?  raise-error-impl*
           =>elisp-eval-error-message
           =>elisp-eval-error-irritants
