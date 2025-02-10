@@ -200,8 +200,7 @@
   ;; If `HEAD` resolves to a lambda, and `LAMBDA-KIND` is `'MACRO`,
   ;; the macro is expanded by evaluating the result with `eval-form`
   ;; before a value is returned.
-  (let ((func (env-resolve-function (*the-environment*) head))
-        )
+  (let ((func (env-resolve-function (*the-environment*) head)))
     (cond
      ((syntax-type?  func)
       (apply (syntax-eval func) head arg-exprs))
@@ -768,9 +767,12 @@
       return
       ))
    ((symbol/string? name/sym)
-    (update&view
-     updater st
-     (=>env-obarray-key! (ensure-string name/sym))))
+    (let-values
+        (((obj return)
+          (update&view updater st
+           (=>env-obarray-key! (ensure-string name/sym)))))
+      return
+      ))
    ))
 
 
@@ -1251,8 +1253,8 @@
   (make-parameter
    `(;; ---- beginning of association list ----
 
-     (nil . ,nil)
-     (t   . ,t)
+     ,nil
+     ,t
 
      (lambda    . ,elisp-lambda)
      (apply    . ,elisp-apply)
@@ -1341,22 +1343,7 @@
   (case-lambda
     (() (elisp-reset-init-env! (*elisp-init-env*)))
     ((init-env) (elisp-reset-init-env! init-env (*the-environment*)))
-    ((init-env env)
-     (let loop ((init-env init-env) (errors '()))
-       (cond
-        ((null? init-env) errors)
-        (else
-         (let ((assoc (car init-env)))
-           (cond
-            ((pair? assoc)
-             (let*((val (cdr assoc))
-                   (val (if (or (not val) (null? val)) '() val)))
-               (lens-set val env (=>env-obarray-key! (ensure-string (car assoc))))
-               (loop (cdr init-env) errors)
-               ))
-            (else
-             (loop (cdr init-env) (cons assoc errors)))
-            ))))))))
+    ((init-env env) (env-alist-defines! env init-env))))
 
 
 (define new-environment
@@ -1369,8 +1356,11 @@
      (let*((size (if (integer? size) size *default-obarray-size*))
            (inits (if (and inits (pair? inits)) inits (*elisp-init-env*)))
            (env (new-empty-environment size))
+           (errors (elisp-reset-init-env! inits env))
            )
-       (elisp-reset-init-env! inits env)
+       (for-each
+        (lambda (err) (display ";;Warning, not a declaration: ") (write err) (newline))
+        errors)
        env))))
 
 (elisp-reset-init-env!)

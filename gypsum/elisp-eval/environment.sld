@@ -67,6 +67,7 @@
    =>env-symbol!
    env-intern!    ;; implements the ELisp `intern` function
    env-setq-bind! ;; implements the ELisp `setq` macro
+   env-alist-defines!
    print-stack-frames
    *default-obarray-size*
    *elisp-input-port*
@@ -80,7 +81,7 @@
    =>env-lexical-mode?!
 
    ;; Symbol objects
-   sym-type?  new-symbol
+   sym-type?  sym-name  new-symbol  new-symbol-value
    =>sym-value*!  =>sym-function*!  =>sym-plist*!
    =>sym-name  =>sym-value!  =>sym-function!  =>sym-plist!
    ensure-string  symbol/string?  any-symbol?

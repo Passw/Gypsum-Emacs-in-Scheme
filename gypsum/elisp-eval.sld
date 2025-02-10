@@ -38,7 +38,7 @@
           elisp-unquote-scheme
           scheme->elisp  elisp->scheme  elisp-null?
           pure  pure*  pure*-typed  pure*-numbers
-          new-empty-environment   elisp-environment-type?
+          new-empty-environment   elisp-environment-type?  env-alist-defines!
           env-push-new-elstkfrm!   env-pop-elstkfrm!
           env-resolve-function   env-intern!   env-setq-bind!
           elstkfrm-from-args   elstkfrm-sym-intern!
@@ -47,7 +47,7 @@
           =>interp-cur!  =>interp-env!  =>interp-stk!
           =>env-obarray-key!   =>env-symbol!
           =>env-lexstack*!  =>env-obarray*!  =>env-lexical-mode?!
-          sym-type?  new-symbol
+          sym-type?  sym-name  new-symbol  new-symbol-value
           =>sym-name  =>sym-value*!  =>sym-function*!  =>sym-plist*!
           =>sym-value!  =>sym-function!  =>sym-plist!
           ensure-string  symbol/string?  any-symbol?

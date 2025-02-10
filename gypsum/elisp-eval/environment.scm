@@ -56,6 +56,12 @@
 
 
 (define new-symbol
+  ;; Construct a new uninterned symbol object. You can pass an
+  ;; optional value, or a value and an optional function. This
+  ;; procedure differs from `NEW-SYMBOL-VALUE` in that it does not
+  ;; guess whether to put the given value into the function slot or
+  ;; value slot.
+  ;;------------------------------------------------------------------
   (case-lambda
     ((name) (new-symbol name #f #f))
     ((name val) (new-symbol name val #f))
@@ -63,6 +69,33 @@
      (cond
       ((string? name) (make<sym> name val func #f))
       (else (error "not a string" name))))))
+
+
+(define (new-symbol-value name val)
+  ;; Construct a new uninterned symbol object with a given value. The
+  ;; value will be placed into the value slot or function slot of the
+  ;; symbol object based on it's type. If `VAL` is already a symbol
+  ;; object, a new symbol object is constructed and populated with the
+  ;; fields of `VAL` except for `SYM-NAME` which is set to the `NAME`
+  ;; argument instead. If you are certain which slot the value should
+  ;; go into (`SYM-FUNCTION` or `SYM-VALUE`), use `NEW-SYMBOL` to
+  ;; construct a symbol object instead as it is more efficient.
+  ;;------------------------------------------------------------------
+  (cond
+   ((procedure? val) (new-symbol name #f val))
+   ((macro-type? val) (new-symbol name #f val))
+   ((syntax-type? val) (new-symbol name #f val))
+   ((command-type? val) (new-symbol name #f val))
+   ((sym-type? val)
+    (if (string? name)
+        (make<sym> name
+         (sym-value val)
+         (sym-function val)
+         (sym-plist val))
+        (error "not a string" name)
+        ))
+   (else (new-symbol name val))
+   ))
 
 
 (define (sym-defun name func) (new-symbol name #f func))
@@ -624,6 +657,50 @@
      (make<elisp-environment>
       (new-empty-obarray size) '() '() (new-bit-stack) #t))))
 
+
+(define (env-alist-defines! env init-env)
+  ;; This procedure updates the global state of an environment with a
+  ;; list `INIT-ENV`. This `INIT-ENV` argument must be a list
+  ;; containing one of two types, either:
+  ;;
+  ;;  1. a `SYM-TYPE?` symbol object, where the `SYM-NAME` of the
+  ;;     symbol object is associated with the symbol object itself in
+  ;;     the environment hash table,
+  ;;
+  ;;  ... or ...
+  ;;
+  ;;  2. a `PAIR?` type where `CAR` is a string name and `CDR` is the
+  ;;     value. The `NEW-SYMBOL-VALUE` procedure is used to construct
+  ;;     a new symbol object with the `CAR` as the name, and
+  ;;     associating it with the new symbol in the environment hash
+  ;;     table.
+  ;;------------------------------------------------------------------
+  (let loop ((init-env init-env) (errors '()))
+    (cond
+     ((null? init-env) errors)
+     (else
+      (let ((assoc (car init-env)))
+        (cond
+         ((pair? assoc)
+          (let*((name (ensure-string (car assoc)))
+                (val (cdr assoc))
+                (obj (if (or (not val) (null? val)) #f
+                         (new-symbol-value name val))))
+            (cond
+             (obj
+              (lens-set obj env (=>env-obarray-key! name))
+              (loop (cdr init-env) errors)
+              )
+             (else
+              (loop (cdr init-env) (cons assoc errors))
+              ))))
+         ((sym-type? assoc)
+          (lens-set assoc env (=>env-obarray-key! (sym-name assoc)))
+          (loop (cdr init-env) errors)
+          )
+         (else
+          (loop (cdr init-env) (cons assoc errors))
+          )))))))
 
 ;;--------------------------------------------------------------------------------------------------
 ;; Interface between Scheme and Elisp
