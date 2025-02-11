@@ -61,6 +61,7 @@
    ;; Environment objects
    new-empty-environment
    elisp-environment-type?
+   env-push-trace!  env-pop-trace!  env-trace!
    env-push-new-elstkfrm!
    env-pop-elstkfrm!
    env-resolve-function
@@ -68,7 +69,10 @@
    env-intern!    ;; implements the ELisp `intern` function
    env-setq-bind! ;; implements the ELisp `setq` macro
    env-alist-defines!
+   env-reset-stack
    print-stack-frames
+   print-trace
+   show-trace ;; prints both trace and stack-frames to standard output port
    *default-obarray-size*
    *elisp-input-port*
    *elisp-output-port*
@@ -79,6 +83,7 @@
    =>env-lexstack*!
    =>env-obarray*!
    =>env-lexical-mode?!
+   =>env-stack-trace*!
 
    ;; Symbol objects
    sym-type?  sym-name  new-symbol  new-symbol-value
@@ -100,6 +105,7 @@
    ;; Error objects
    raise-error-impl*  eval-raise  eval-error
    elisp-eval-error-type?  =>elisp-eval-error-message  =>elisp-eval-error-irritants
+   print-trace  print-stack-frames
 
    ;; Stack frames
    new-elstkfrm  stack-lookup

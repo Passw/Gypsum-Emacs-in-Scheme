@@ -444,12 +444,13 @@
   ;; This is the environment object used for the Emacs Lisp evaluator.
   ;; Use `NEW-ENVIRONMENT` to construct an object of this type.
   ;;------------------------------------------------------------------
-  (make<elisp-environment> env dyn lex flag mode)
+  (make<elisp-environment> env dyn lex flag trace mode)
   elisp-environment-type?
   (env   env-obarray   set!env-obarray)  ;;environment (obarray)
   (dyn   env-dynstack  set!env-dynstack) ;;dynamically bound variable stack frames
   (lex   env-lexstack  set!env-lexstack) ;;lexically bound variable stack frames
   (flag  env-stkflags  set!env-stkflags) ;;bits indicating stack frame type
+  (trace env-trace     set!env-trace)    ;;stack trace
   (mode  env-lxmode    set!env-lxmode)   ;;lexical binding mode
   )
 
@@ -472,6 +473,59 @@
 
 (define =>env-lexical-mode?!
   (record-unit-lens env-lxmode set!env-lxmode '=>env-lexical-mode?!))
+
+(define =>env-stack-trace*!
+  (record-unit-lens env-trace set!env-trace '=>env-stack-trace*!))
+
+
+(define (env-push-trace! st sym)
+  (update (lambda (stack) (cons sym stack)) st =>env-stack-trace*!))
+
+
+(define (env-pop-trace! st)
+  (update (lambda (stack) (cdr stack)) st =>env-stack-trace*!))
+
+
+(define env-trace!
+  ;; Assuming the `PROC` argument is a procedure that returns exactly
+  ;; 1 value, push `PROC` onto the stack, evaluate proc, capture the
+  ;; return value of `PROC`, pop the stack, and return the value
+  ;; returned by `PROC`. Optionally pass three arguments where the
+  ;; second argument `ELEM` is pushed in place of the third argument
+  ;; `PROC`.
+  ;;------------------------------------------------------------------
+  (case-lambda
+    ((st proc) (env-trace! st proc proc))
+    ((st elem proc)
+     (env-push-trace! st elem)
+     (let ((result (proc)))
+       (env-pop-trace! st)
+       result
+       ))))
+
+
+(define (env-reset-stack! st)
+  ;; Clear the stacks and stack traces, leave the rest of the
+  ;; environment untouched.
+  ;;------------------------------------------------------------------
+  (set!env-dynstack st '())
+  (set!env-lexstack st '())
+  (set!env-stkflags st (new-bit-stack))
+  (set!env-trace    st '())
+  (set!env-lxmode   st #t)
+  st)
+
+
+(define (print-trace st)
+  (let ((len (length (env-trace st))))
+    (let loop ((trace (reverse (env-trace st))) (i 0))
+      (cond
+       ((null? trace) #f)
+       (else
+        (let ((tr (car trace)))
+          (print i ": " (if (sym-type? tr) (sym-name tr) tr) (line-break))
+          (loop (cdr trace) (- i 1))
+          ))))))
 
 
 (define (print-stack-frames st)
@@ -655,7 +709,7 @@
     (() (new-empty-environment *default-obarray-size*))
     ((size)
      (make<elisp-environment>
-      (new-empty-obarray size) '() '() (new-bit-stack) #t))))
+      (new-empty-obarray size) '() '() (new-bit-stack) '() #t))))
 
 
 (define (env-alist-defines! env init-env)

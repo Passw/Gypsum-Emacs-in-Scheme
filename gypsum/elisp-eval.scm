@@ -3,6 +3,16 @@
   (make-parameter (new-empty-environment *default-obarray-size*)))
 
 
+(define (elisp-show-trace)
+  (let ((st (*the-environment*)))
+    (pretty
+     (print
+      (print-trace st)
+      "==== stack frames ================"
+      (line-break)
+      (print-stack-frames st)))))
+
+
 (define =>elisp-symbol!
   ;; This lens looks-up a symbol in the environment, including the
   ;; stack, so it can operate on an environment returned by a
@@ -200,22 +210,31 @@
   ;; If `HEAD` resolves to a lambda, and `LAMBDA-KIND` is `'MACRO`,
   ;; the macro is expanded by evaluating the result with `eval-form`
   ;; before a value is returned.
-  (let ((func (env-resolve-function (*the-environment*) head)))
+  (let*((st (*the-environment*))
+        (func (env-resolve-function st head)))
     (cond
      ((syntax-type?  func)
       (apply (syntax-eval func) head arg-exprs))
      ((macro-type?   func)
-      (eval-form (apply (macro-procedure func) head arg-exprs)))
+      (env-trace! st (cons head func)
+       (lambda () (eval-form (apply (macro-procedure func) head arg-exprs)))))
      ((lambda-type?  func)
-      (let ((return (eval-apply-lambda func arg-exprs)))
+      (let ((return
+             (env-trace! st (cons head func)
+              (lambda () (eval-apply-lambda func arg-exprs)))))
         (cond ;; macro expand (if its a macro)
          ((eq? 'macro (view func =>lambda-kind*!)) (eval-form return))
          (else return)
          )))
-     ((command-type? func) (eval-apply-proc (command-procedure func) arg-exprs))
-     ((procedure?    func) (eval-apply-proc func arg-exprs))
+     ((command-type? func)
+      (env-trace! st (cons head func)
+       (lambda () (eval-apply-proc (command-procedure func) arg-exprs))))
+     ((procedure?    func)
+      (env-trace! st (cons head func)
+       (lambda () (eval-apply-proc func arg-exprs))))
      (else (eval-error "invalid function" head))
-     )))
+     )
+    ))
 
 
 (define (eval-form expr)

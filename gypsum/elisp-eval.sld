@@ -17,6 +17,7 @@
     (only (srfi 1) assq)
     (only (gypsum editor command) command-type? command-procedure)
     (only (gypsum hash-table) hash-table-empty?)
+    (only (gypsum pretty) pretty print line-break)
     (only (gypsum lens)
           unit-lens  record-unit-lens  lens
           lens-set  lens-set!  endo-view  view
@@ -39,7 +40,7 @@
           scheme->elisp  elisp->scheme  elisp-null?
           pure  pure*  pure*-typed  pure*-numbers
           new-empty-environment   elisp-environment-type?  env-alist-defines!
-          env-push-new-elstkfrm!   env-pop-elstkfrm!
+          env-push-new-elstkfrm!   env-pop-elstkfrm!  env-trace!
           env-resolve-function   env-intern!   env-setq-bind!
           elstkfrm-from-args   elstkfrm-sym-intern!
           *default-obarray-size*
@@ -66,6 +67,7 @@
           =>elisp-eval-error-message
           =>elisp-eval-error-irritants
           eval-raise  eval-error
+          print-trace  print-stack-frames
           )
     (only (gypsum elisp-eval format) format format-to-port)
     )
@@ -127,6 +129,7 @@
 
    ;; Error objects
    elisp-eval-error-type?  =>elisp-eval-error-message  =>elisp-eval-error-irritants
+   elisp-show-trace
    )
 
   (include "elisp-eval.scm")
