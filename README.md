@@ -26,6 +26,45 @@ code.
 - [`(gypsum cursor)`](../../../wiki/Cursor.md): an iterator-like object
 - [`(rapid match)`](../../../wiki/RapidMatch.md): a tiny, portable pattern matcher
 
+## How to help contribute code
+
+There are many tasks to complete, many of which are fairly simple to
+do even for people with not a lot of experience using the Scheme
+programming lanugage, as long as you can get the code in this project
+to run on your Scheme implementation.
+(See the ["How To Build"](#how-to-build) section below.)
+
+As of right now, the most important long-term issue to work on is
+[#30 "*Get Emacs Regression Tests (ERT) to evaluate on the `cl-lib.el`*"](https://codeberg.org/ramin_hal9001/gypsum/issues/30).
+Please refer to that issue for details, but breifly
+here is what must be done: first try running the `elisp-tests.scm`
+test program in your Scheme REPL...
+
+```
+(load "./elisp-tests.scm")
+```
+
+...if an error occurs, it will print the Emacs Lisp form that caused
+the error. Since the test programs run by `elisp-tests.scm` all work
+perfectly well in GNU Emacs Lisp, any error in Gypsum while evaluating
+these tests is an implementation bug that must be corrected.
+
+If you find a bug, check if has already been recorded in the
+[list of open issues](https://codeberg.org/ramin_hal9001/gypsum/issues ),
+and if anyone is already assigned to wokring on it. If it is unassigned,
+please comment on the issue that you would like to begin working on a
+patch! You may also open a new issue if the bug seems not to have been
+recorded yet, but please wait until you receive a reply from the
+maintainers on your issue before starting work on a patch to make sure
+you don't end up duplicating the work of others.
+
+If you want to contribute, but are not interested in working on the
+Emacs Lisp interpreter part of the Gypsum project, please feel free to
+contact the author (contact details on
+[Codeberg.org](https://codeberg.org/ramin_hal9001)) after reading
+through the [list of open issues](https://codeberg.org/ramin_hal9001/gypsum/issues ),
+or reading over the [**feature wish list**](../../../wiki/WishList.md) document.
+
 ## How to build
 
 As of right now, this project only runs on Guile Scheme, although
@@ -230,3 +269,6 @@ to get in touch with us, we want to help you contribute code.
 
 If you would like some ideas on how to contribute, a good place to
 start is to read our [**feature wish list**](../../../wiki/WishList.md) document.
+
+Also check out issue [#30 "*Get Emacs Regression Tests (ERT) to evaluate on the `cl-lib.el`*"](https://codeberg.org/ramin_hal9001/gypsum/issues/30) if you would
+like to try contributing to the Emacs Lisp interpreter part of this project.
