@@ -37,6 +37,7 @@
           eval-iterate-forms
           elisp-eval!
           elisp-load!
+          elisp-show-trace
           )
     )
   (export
@@ -46,6 +47,7 @@
    elisp-view-form-buffer
    elisp-load-form-buffer!
    elisp-load!
+   elisp-show-trace
    *the-environment*
    new-environment
    elisp-view-forms vf

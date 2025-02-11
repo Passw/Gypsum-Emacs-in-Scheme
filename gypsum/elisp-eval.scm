@@ -120,10 +120,18 @@
           (cond
            ((eof-object? form)
             (when close-on-end (close-port port))
-            (values))
+            '())
            (else
-            (use-form form)
-            (loop (read-elisp port))
+            (let ((result (use-form form)))
+              (cond
+               ((elisp-eval-error-type? result)
+                (let ((stderr (current-error-port)))
+                  (write form stderr) (newline stderr)
+                  )
+                result
+                )
+               (else (loop (read-elisp port)))
+               ))
             )))
         ;; First handle the lexical binding mode, if it exists.
         (let ((form (read-elisp port)))
@@ -1274,6 +1282,7 @@
 
      ,nil
      ,t
+     ,(new-symbol "noninteractive" #t)
 
      (lambda    . ,elisp-lambda)
      (apply    . ,elisp-apply)
