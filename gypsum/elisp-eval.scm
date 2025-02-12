@@ -602,6 +602,34 @@
          )))))
 
 
+(define variable-documentation "variable-documentation")
+
+
+(define elisp-defvar
+  (make<syntax>
+   (lambda expr
+     (let ((def (car expr))
+           (expr (cdr expr)))
+       (define (defvar sym-expr val-expr docstr)
+         (let*((sym (eval-ensure-interned sym-expr))
+               (val (if val-expr (eval-form val-expr) #f))
+               )
+           (lens-set val sym =>sym-value*!)
+           (when docstr
+             (lens-set docstr sym
+              (=>sym-plist! (sym-name sym))
+              (=>hash-key! variable-documentation)))
+           val
+           ))
+       (match expr
+         (() (eval-error "wrong number of arguments" def '()))
+         ((,sym-expr) (defvar sym-expr #f #f))
+         ((,sym-expr ,val-expr) (defvar sym-expr val-expr #f))
+         ((,sym-expr ,val-expr ,docstr) (defvar sym-expr val-expr docstr))
+         (,any (eval-error "wrong number of arguments" def any))
+         )))))
+
+
 (define elisp-defun-defmacro
   (make<syntax>
    (lambda expr
@@ -609,8 +637,8 @@
            (expr (cdr expr))
            )
        (match expr
-         (() (eval-error "wrong number of arguments" '()))
-         ((,sym) (eval-error "wrong number of arguments" sym))
+         (() (eval-error "wrong number of arguments" def '()))
+         ((,sym) (eval-error "wrong number of arguments" def sym))
          ((,sym (,args ...) ,body ...)
           (cond
            ((symbol? sym)
@@ -1294,6 +1322,7 @@
      (defsubst . ,elisp-defun-defmacro)
      (defmacro . ,elisp-defun-defmacro)
      (defalias . ,elisp-defalias)
+     (defvar   . ,elisp-defvar)
      (function . ,elisp-function)
      (progn    . ,elisp-progn)
      (prog1    . ,elisp-prog1)
