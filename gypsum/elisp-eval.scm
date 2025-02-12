@@ -958,7 +958,7 @@
   (make<syntax>
    (lambda args
      (match args
-       ((,arg)
+       ((function ,arg)
         (let ((is-lambda? (lambda (o) (and (pair? o) (symbol? (car o)) (eq? 'lambda (car o)))))
               (make-lambda (lambda (o) (apply (macro-procedure elisp-lambda) o)))
               )
@@ -969,7 +969,7 @@
                ((sym-type? result) (view result =>sym-function*!))
                ((lambda-type? result) result)
                ((is-lambda? result) (make-lambda result))
-               (else (eval-error "not a function type" "function" arg))
+               (else arg)
                )))
            ((is-lambda? arg) (make-lambda arg))
            (else
@@ -1270,6 +1270,9 @@
     ))
 
 
+(define elisp-sxhash-equal (pure 1 "sxhash-equal" hash))
+
+
 (define *elisp-init-env*
   ;; A parameter containing the default Emacs Lisp evaluation
   ;; environment. This environment is an ordinary association list
@@ -1362,6 +1365,8 @@
      (print            . ,elisp-print)
 
      (load             . ,elisp-load)
+
+     (sxhash-equal     . ,elisp-sxhash-equal)
 
      ;; ------- end of assocaition list -------
      )))
