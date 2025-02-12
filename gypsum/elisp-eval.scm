@@ -625,7 +625,7 @@
                                 obj)))
                   )
               (cond
-               ((eq? def 'defun) func)
+               ((or (eq? def 'defun) (eq? def 'defsubst)) func)
                ((eq? def 'defmacro) (lens-set 'macro func =>lambda-kind*!))
                (else (error "expecting function head to be 'defun or 'defmacro" def))
                )
@@ -1291,6 +1291,7 @@
      (apply    . ,elisp-apply)
      (funcall  . ,elisp-funcall)
      (defun    . ,elisp-defun-defmacro)
+     (defsubst . ,elisp-defun-defmacro)
      (defmacro . ,elisp-defun-defmacro)
      (defalias . ,elisp-defalias)
      (function . ,elisp-function)
