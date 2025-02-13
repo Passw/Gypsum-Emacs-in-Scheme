@@ -410,7 +410,7 @@
   ;;------------------------------------------------------------------
   (cond
    ((string? syms)
-    (error "TODO: keymap-index constructed by a string"))
+    (keymap-index (string->keymap-index syms)))
    ((pair? syms)
     (let loop
         ((mod-index 0)
@@ -431,6 +431,35 @@
                 (error "unknown keymap-index modifier symbol" sym)))))
            (else
             (error "keymap index must be composed of symbols or characters" sym))))))))))
+
+
+(define (string->keymap-index str)
+  ;; Emacs uses the ASCII protocol to represent control characters and
+  ;; non-control characters. It negates characters modulo 2^27 and
+  ;; sets the upper bits on these integers to represent Meta, Super,
+  ;; Hyper, and Alt modifiers.
+  ;;------------------------------------------------------------------
+  (let ((len (string-length str)))
+    (let loop ((i 0) (stack '()))
+      (cond
+       ((>= i len) (reverse stack))
+       (else
+        (let*((ch (string-ref str i))
+              (ci (char->integer ch))
+              )
+          (cond
+           ((= ci 0)
+            (loop (+ 1 i) (cons #\@ (cons 'ctrl stack))))
+           ((< ci #x20)
+            (loop (+ 1 i) (cons (integer->char (+ 96 ci)) (cons 'ctrl stack))))
+           ;;TODO: there are a lot more things here that could be
+           ;; decoded. For starters, the `STR` argument could be an
+           ;; unboxed integer vector with the Meta, Super, Hyper, or Alt
+           ;; bits set, none of that has been encoded here yet.
+           (else
+            (loop (+ 1 i) (cons ch stack))
+            ))))))))
+
 
 (define *mod-bit-alist*
   `((ctrl    . ,ctrl-bit)
@@ -684,21 +713,22 @@ The ~PROC~ argument may be a procedure, or it may be another
 
 
 (define (default-make-keymap-layer-mod-table)
-  "This hash table has a size of 7. Any combination of the control
-and meta bits (or none) exist tables in lower 4 bins (0, 1, 2,
-or 3). All other modifiers are shoved up into upper 3 bins. I
-do this because the use of super, hyper and alt modifiers are
-so unusual in normal Emacs usage that I expect these upper 3
-bins will almost never be used."
+  ;; This hash table has a size of 7. Any combination of the control
+  ;; and meta bits (or none) exist tables in lower 4 bins (0, 1, 2, or
+  ;; 3). All other modifiers are shoved up into upper 3 bins. I do
+  ;; this because the use of super, hyper and alt modifiers are so
+  ;; unusual in normal Emacs usage that I expect these upper 3 bins
+  ;; will almost never be used.
   (make-hash-table
    eqv?
    (lambda (x size) (if (> x 3) (+ 4 (modulo x (- size 4))) x))
-   #:weak #f
-   7))
+   #:weak #f 7
+   ))
 
 
 (define (=>keymap-layer-mod-table-key? key)
-  "Define a lens accessing a key in the hash table of a KEYMAP-LAYER-MOD-TABLE."
+  ;; Define a lens accessing a key in the hash table of a
+  ;; KEYMAP-LAYER-MOD-TABLE.
   (lens
    =>keymap-layer-mod-table?
    (=>canonical (=>hash-key! key) default-make-keymap-layer-mod-table hash-table-empty?)))
@@ -711,6 +741,8 @@ bins will almost never be used."
   ;; function.
   ;;------------------------------------------------------------------
   (cond
+   ((string? key-path)
+    (=>keymap-layer-index! (keymap-index key-path)))
    ((keymap-index-type? key-path)
     (=>canonical
      (apply lens
@@ -744,12 +776,15 @@ bins will almost never be used."
   ;; `<KEYMAP-LAYER-TYPE>.`
   ;;------------------------------------------------------------------
   (let ((label (cons '=>kbd syms))
-        (=>lens (=>keymap-layer-index! syms)))
+        (=>lens (lens (=>keymap-layer-index! syms)
+                      =>keymap-layer-alt-action))
+        )
     (unit-lens
-     (lambda (km) (view km =>lens =>keymap-layer-alt-action))
-     (lambda (km val) (lens-set val km =>lens =>keymap-layer-alt-action))
-     (lambda (up km) (update&view up km =>lens =>keymap-layer-alt-action))
-     label)))
+     (lambda (km) (view km =>lens))
+     (lambda (km val) (lens-set val km =>lens))
+     (lambda (up km) (update&view up km =>lens))
+     label
+     )))
 
 (define (prefer-new-bindings old new)
   ;; Use this as the first argument to the KEYMAP-LAYER-MERGE-ACTIONS
@@ -930,9 +965,17 @@ bins will almost never be used."
   ;;------------------------------------------------------------------
   (make<keymap> layers label)
   keymap-type?
-  (layers  keymap->layers-list)
+  (layers  keymap->layers-list  set!keymap-layers)
   (label   keymap-label         set!keymap-label)
   )
+
+
+(define =>keymap-layers*!
+  (record-unit-lens
+   keymap->layers-list
+   set!keymap-layers
+   '=>keymap-layers*!))
+
 
 (define (keymap . layers)
   ;; Construct a `<KEYMAP-TYPE>`. If the first argument is a string or
@@ -968,6 +1011,20 @@ bins will almost never be used."
    ((keymap-index-predicate-type? km)
     (apply-keymap-index-predicate km key-path))
    (else (error "not a <keymap-layer-type> or <keymap-index-predicate-type>" km))
+   ))
+
+
+(define =>keymap-top-layer!
+  ;; A lens that focuses on the top-most layer of a
+  ;; `<KEYMAP-TYPE>`. This lens is canonical, so if the keymap has no
+  ;; layers, a new layer is created. If the top layer is empty, it is
+  ;; removed.
+  (=>encapsulate
+   (lens
+    =>keymap-layers*! =>head
+    (=>canonical =>self keymap-layer keymap-layer-empty?)
+    )
+   '=>keymap-top-layer!
    ))
 
 

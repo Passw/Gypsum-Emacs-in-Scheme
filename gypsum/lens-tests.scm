@@ -469,6 +469,13 @@
 
 (set! list-of-evens (update (lambda (x) (+ 5 x)) list-of-evens (=>bring odd?)))
 
+(define ll '())
+(test-equal '()    (begin (set! ll (lens-set #f ll =>head)) ll))
+(test-equal '(0)   (begin (set! ll (lens-set  0 ll =>head)) ll))
+(test-equal '(1)   (begin (set! ll (lens-set  1 ll =>head)) ll))
+(test-equal '()    (begin (set! ll (lens-set #f ll =>head)) ll))
+
+
 (test-equal '(10 0 2 4 6 8) list-of-evens)
 
 (test-assert (null? (view list-of-evens (=>bring odd?))))

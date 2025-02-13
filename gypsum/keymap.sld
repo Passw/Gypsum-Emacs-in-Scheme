@@ -8,8 +8,11 @@
     (only (gypsum lens)
           lens view update update&view lens-set
           unit-lens record-unit-lens
-          =>self =>trace =>hash-key!
-          =>on-update  =>canonical  =>encapsulate)
+          =>self  =>trace  =>hash-key!
+          =>on-update  =>canonical
+          =>head  =>encapsulate
+          =>trace
+          )
     (only (gypsum pretty)
           pretty print qstr repeat join-by bracketed
           indent-by newline-indent line-break)
@@ -88,6 +91,7 @@
    keymap-index
    keymap-index-append
    keymap-index->list
+   string->keymap-index
    reverse-list->keymap-index
    keymap-index->ascii
    =>kbd! =>keymap-layer-index!
@@ -118,7 +122,9 @@
    apply-keymap-index-predicate
 
    keymap-type?
+   =>keymap-layers*!
    =>keymap-label!
+   =>keymap-top-layer!
    keymap keymap-lookup keymap->layers-list
    keymap-print
 

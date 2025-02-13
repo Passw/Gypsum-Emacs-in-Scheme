@@ -1301,6 +1301,43 @@
 (define elisp-sxhash-equal (pure 1 "sxhash-equal" hash))
 
 
+(define (elisp-make-keymap . args)
+  (match args
+    (() (keymap))
+    ((,name)
+     (let ((km (keymap)))
+       (lens-set name km =>keymap-label!) km))
+    (,any
+     (eval-error
+      "wrong number of arguments"
+      "make-keymap" #:min 0 #:max 1))
+    ))
+
+
+(define (elisp-define-key . args)
+  (define (define-key keymap key binding remove)
+    (let ((binding (if binding binding nil))
+          (=>lens (lens =>keymap-top-layer! (=>keymap-layer-index! key)))
+          )
+      (cond
+       ((not (keymap-type? keymap))
+        (eval-error "wrong type argument" keymap #:expecting "keymapp"))
+       (remove (lens-set #f keymap =>lens))
+       (else (lens-set binding keymap =>lens)))
+      binding
+      ))
+  (match args
+    ((,keymap ,key ,binding)
+     (define-key keymap key binding #f))
+    ((,keymap ,key ,binding ,remove)
+     (define-key keymap key binding remove))
+    (,any
+     (eval-error
+      "wrong number of arguments"
+      "define-key" #:min 3 #:max 4))
+    ))
+
+
 (define *elisp-init-env*
   ;; A parameter containing the default Emacs Lisp evaluation
   ;; environment. This environment is an ordinary association list
@@ -1396,7 +1433,10 @@
 
      (load             . ,elisp-load)
 
-     (sxhash-equal     . ,elisp-sxhash-equal)
+     (sxhash-equal       . ,elisp-sxhash-equal)
+     (make-keymap        . ,elisp-make-keymap)
+     (make-sparse-keymap . ,elisp-make-keymap)
+     (define-key         . ,elisp-define-key)
 
      ;; ------- end of assocaition list -------
      )))

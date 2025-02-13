@@ -12,7 +12,11 @@
    ;; There is a bug in Guile `cond-expand`, if Guile tries to
    ;; evaluate the next conditional clause it fails. This conditional
    ;; clause exists to prevent the next clause from being evaluated.
-   )
+   (import
+     (only (srfi 64)  ; test suite
+           test-begin test-end test-assert test-eq test-equal
+           )
+     ))
   ((library (srfi 64))
    (import
      (only (srfi 64)  ; test suite
@@ -126,6 +130,8 @@
 
 (define kml (lens-set "c" (keymap-layer) (=>keymap-layer-index! '(#\c))))
 (test-equal "c" (view kml (=>keymap-layer-index! '(#\c))))
+
+(test-equal C-c_C-c (string->keymap-index (list->string (map integer->char '(3 3)))))
 
 (set! kml (lens-set "x" #f (=>keymap-layer-index! '(#\x))))
 (test-equal "x" (view kml (=>keymap-layer-index! '(#\x))))
@@ -353,6 +359,21 @@
 (test-assert (char=? #\c (keymap-lookup km (keymap-index '(#\c)))))
 (test-assert (char=? #\null (keymap-lookup (keymap ctrl-char km) (keymap-index '(ctrl #\@)))))
 (test-assert (not (keymap-lookup km unassigned-key)))
+
+(test-equal "hello"
+  (let ((km (keymap (keymap-layer))))
+    ;; Test the =>keymap-top-layer! lens on a keymap with 1 layer
+    (lens-set "hello" km =>keymap-top-layer! (=>keymap-layer-index! C-c_C-c))
+    (view km =>keymap-top-layer! (=>keymap-layer-index! C-c_C-c))
+    ))
+
+(test-equal "hello"
+  (let ((km (keymap)))
+    ;; Test the =>keymap-top-layer! lens on a keymap with 1 no layers,
+    ;; should be canonical and add a new layer.
+    (lens-set "hello" km =>keymap-top-layer! (=>keymap-layer-index! C-c_C-c))
+    (view km =>keymap-top-layer! (=>keymap-layer-index! C-c_C-c))
+    ))
 
 (define modal #f)
 

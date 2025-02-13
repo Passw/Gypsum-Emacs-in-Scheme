@@ -24,12 +24,15 @@
           update  endo-update  update&view
           *default-hash-table-constructor*
           default-unit-lens-updater  default-unit-lens-setter
-          =>canonical  =>view-only-lens  =>hash-key!  =>hash-key*!)
+          =>canonical  =>view-only-lens  =>encapsulate
+          =>hash-key!  =>hash-key*!
+          )
     (only (gypsum lens vector) mutable-vector-type?)
     (only (gypsum cursor)
           new-cursor  cursor-ref  cursor-step!
           cursor-end?  cursor-type?
-          cursor-collect-list  new-cursor-if-iterable)
+          cursor-collect-list  new-cursor-if-iterable
+          )
     (only (rapid match) match)
     (prefix (gypsum editor-impl) *impl/)
     (only (gypsum elisp-eval parser) read-elisp)
@@ -70,6 +73,12 @@
           print-trace  print-stack-frames
           )
     (only (gypsum elisp-eval format) format format-to-port)
+    (only (gypsum keymap)
+          keymap  keymap-type?  keymap-layer
+          =>keymap-label!
+          =>keymap-layer-index!
+          =>keymap-top-layer!
+          )
     )
 
   (cond-expand

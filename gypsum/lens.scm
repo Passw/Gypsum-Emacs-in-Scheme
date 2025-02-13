@@ -762,6 +762,30 @@
   (cons-lens car cdr cons '=>car))
 
 
+(define =>head
+  ;; This lens is similar to `=>CAR` except that it checks for both
+  ;; `#F` and null lists '(), so lists constructed with `=>CAR` can
+  ;; contain `#F` values, but lists constructed with `=>HEAD` can
+  ;; not. The `=>HEAD` lens tends to compose better with other
+  ;; `=>CANONICAL` lenses, since `=>CANONICAL` checks for `#F` values
+  ;; to determine whether a new node needs to be constructed, and sets
+  ;; `#F` if a node is updated to become empty.
+  ;;------------------------------------------------------------------
+  (let ((getter
+         (lambda (cell) (if (pair? cell) (car cell) #f)))
+        (setter
+         (lambda (cell val)
+           (cond
+            ((not val) (if (pair? cell) (cdr cell) '()))
+            (else (if (pair? cell) (cons val (cdr cell)) (list val)))
+            )))
+        )
+    (unit-lens
+     getter setter
+     (default-unit-lens-updater getter setter)
+     '=>car*)))
+
+
 (define =>cdr
   ;; This lens is `=>CANONICAL` -- `'()` is returned if the pair is
   ;; equal to `(CONS '() '())` after an update.
@@ -1171,7 +1195,7 @@
   ;; all empty fields to be reduced to a single #f value, and also
   ;; allows new empty records to be constructed in place of an #f
   ;; value when the times comes to store new non-empty value into the
-  ;; structure, thus allowsing the lenses to grow or shrink data
+  ;; structure, thus allowing the lenses to grow or shrink data
   ;; structures as needed. How it works is is straight forward: the
   ;; `=>CANONICAL` lens first performs checks on the record in focus
   ;; to see if it is #f, and if so, simply returns #f rather than
@@ -1314,7 +1338,7 @@
 
 ;; -------------------------------------------------------------------------------------------------
 
-(define =>trace 
+(define =>trace
   ;; Construct a new debugging lens from another lens. The debugging
   ;; lens installs exception handlers. Two optional arguments
   ;; (optional in that you may pass #f as these arguments). The first
@@ -1336,14 +1360,14 @@
         (lambda (record-in-focus)
           (display
            (format
-            "(begin view on lens ~a:\n  #:record-in-focus (~a))\n"
+            "(begin view on ~a:\n  #:record-in-focus (~a))\n"
             (lens->expr lens) record-in-focus)
            port)
           (with-exception-handler
               (lambda (err)
                 (display
                  (format
-                  "(error in view on lens ~a:\n  #:error ~a\n  #:record-in-focus (~a))\n"
+                  "(error in view on ~a:\n  #:error ~a\n  #:record-in-focus (~a))\n"
                   (lens->expr lens) err record-in-focus)
                  port)
                 (if continuation (continuation err) (raise err)))
@@ -1351,7 +1375,7 @@
               (let ((result (view record-in-focus lens)))
                 (display
                  (format
-                  "(return from view on lens ~a:\n  #:record-in-focus (~a)\n  #:result (~a))\n"
+                  "(return from view on ~a:\n  #:record-in-focus (~a)\n  #:result (~a))\n"
                   (lens->expr lens) record-in-focus result)
                  port)
                 result))))
@@ -1359,14 +1383,14 @@
         (lambda (record-in-focus new-info)
           (display
            (format
-            "(begin set! on lens ~a:\n  #:new-info (~a) #:record-in-focus (~a))\n"
+            "(begin set! on ~a:\n  #:new-info (~a) #:record-in-focus (~a))\n"
             (lens->expr lens) new-info record-in-focus)
            port)
           (with-exception-handler
               (lambda (err)
                 (display
                  (format
-                  "(error in set! on lens ~a\n  #:error ~a\n  #:new-info (~a)\n  #:record-in-focus (~a))\n"
+                  "(error in set! on ~a\n  #:error ~a\n  #:new-info (~a)\n  #:record-in-focus (~a))\n"
                   (lens->expr lens) err
                   new-info record-in-focus)
                  port)
@@ -1375,7 +1399,7 @@
               (let ((result (lens-set new-info record-in-focus lens)))
                 (display
                  (format
-                  "(return from set! on lens ~a:\n  #:new-info (~a)\n  #:record-in-focus (~a)\n  #:result (~a))\n"
+                  "(return from set! on ~a:\n  #:new-info (~a)\n  #:record-in-focus (~a)\n  #:result (~a))\n"
                   (lens->expr lens) new-info record-in-focus result)
                  port)
                 result))))
@@ -1383,14 +1407,14 @@
         (lambda (updater record-in-focus)
           (display
            (format
-            "(begin update&view on lens ~a:\n  #:record-in-focus (~a))\n"
+            "(begin update&view on ~a:\n  #:record-in-focus (~a))\n"
             (lens->expr lens) record-in-focus)
            port)
           (with-exception-handler
               (lambda (err)
                 (display
                  (format
-                  "(error in update&view lens ~a:\n  #:error ~a\n  #:record-in-focus (~a))\n"
+                  "(error in update&view ~a:\n  #:error ~a\n  #:record-in-focus (~a))\n"
                   (lens->expr lens) err record-in-focus)
                  port)
                 (if continuation (continuation err) (raise err)))
@@ -1398,7 +1422,7 @@
               (let-values (((result return) (update&view updater record-in-focus lens)))
                 (display
                  (format
-                  "(return from update&view lens ~a:\n  #:record-in-focus (~a)\n  #:result (~a)\n  #:return (~a))\n"
+                  "(return from update&view ~a:\n  #:record-in-focus (~a)\n  #:result (~a)\n  #:return (~a))\n"
                   (lens->expr lens) record-in-focus result return)
                  port)
                 (values result return)))))

@@ -42,22 +42,22 @@
 
   (export
    ;; -------------------- Main API --------------------
-   lens view lens-set lens-swap update&view update& update
-   lens-set! lens-swap! endo-set endo-update endo-view
-   lens-compose endo
+   lens  view  lens-set  lens-swap  update&view  update&  update
+   lens-set!  lens-swap!  endo-set  endo-update  endo-view
+   lens-compose  endo
 
    ;; ------------------- Unit lenses ------------------
    ;; When defining your own lenses
    ;; use unit-lens or record-unit-lens
-   %unit-lens-type? %lens-type? unit-lens
-   unit-lens-view unit-lens-update unit-lens-set unit-lens-swap
+   %unit-lens-type?  %lens-type?  unit-lens
+   unit-lens-view  unit-lens-update  unit-lens-set  unit-lens-swap
    record-unit-lens
-   unit-lens-getter unit-lens-setter unit-lens-updater unit-lens->expr
+   unit-lens-getter  unit-lens-setter  unit-lens-updater  unit-lens->expr
    default-unit-lens-setter  default-unit-lens-updater
 
    ;; ------------- Lenses introspection ---------------
    ;; Inspecting properties of lenses.
-   lens-type? vector->lens lens->vector lens-view lens-unit-count
+   lens-type?  vector->lens  lens->vector  lens-view  lens-unit-count
 
    ;; -- Extending lens indexing with other data types --
    ;; The `view` and `update&view` procedures can take integer, string, or
@@ -74,20 +74,20 @@
    ;; ----------- Useful, pre-defined lenses -----------
 
    ;; Lists, and association Lists
-   =>car =>cdr
-   =>find-tail =>find =>bring
-   =>assoc-by =>assoc =>assv =>assq
+   =>car  =>head  =>cdr
+   =>find-tail  =>find  =>bring
+   =>assoc-by  =>assoc  =>assv  =>assq
 
    ;; Vectors
-   =>vector-index*! =>vector-index!
-   *default-vector-constructor* *default-vector-copier*
+   =>vector-index* ! =>vector-index!
+   *default-vector-constructor*  *default-vector-copier*
 
    ;; Hash tables
-   =>hash-key*! =>hash-key! *default-hash-table-constructor*
+   =>hash-key*!  =>hash-key!  *default-hash-table-constructor*
 
    ;; Utility lenses
-   =>self =>const =>true =>false
-   =>guard =>on-update =>canonical =>encapsulate
+   =>self  =>const  =>true  =>false
+   =>guard  =>on-update  =>canonical  =>encapsulate
    =>view-only-lens
 
    ;; Debugging lenses
