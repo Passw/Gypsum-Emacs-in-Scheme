@@ -15,23 +15,23 @@
 (define (pp form)
   (match form
     (() "nil")
-    ((progn ,body ...) (block-form "progn" 0 2 2 body))
-    ((prog1 ,body ...) (block-form "prog1" 1 6 2 body))
-    ((prog2 ,body ...) (block-form "prog2" 2 6 2 body))
-    ((let  ,defs ,body ...) (pp-let "let " defs body))
-    ((let* ,defs ,body ...) (pp-let "let*" defs body))
-    ((cond ,conditions ...) (pp-cond conditions))
-    ((while ,condition ,body ...) (block-form "while" 1 7 2 body))
-    ((until ,condition ,body ...) (block-form "until" 1 7 2 body))
-    ((defun ,name ,args ,body ...) (pp-defun "defun" name args body))
-    ((defmacro ,name ,args ,body ...) (pp-defun "defmacro" name args body))
-    ((declare (,forms ...)) (pp-declare forms))
-    ((|`| ,form)   (pp-quoted #\` form))
-    ((|,| ,form)   (pp-quoted #\, form))
-    ((quote ,form) (pp-quoted #\' form))
+    (('progn body ...) (block-form "progn" 0 2 2 body))
+    (('prog1 body ...) (block-form "prog1" 1 6 2 body))
+    (('prog2 body ...) (block-form "prog2" 2 6 2 body))
+    (('let  defs body ...) (pp-let "let " defs body))
+    (('let* defs body ...) (pp-let "let*" defs body))
+    (('cond conditions ...) (pp-cond conditions))
+    (('while condition body ...) (block-form "while" 1 7 2 body))
+    (('until condition body ...) (block-form "until" 1 7 2 body))
+    (('defun name args body ...) (pp-defun "defun" name args body))
+    (('defmacro name args body ...) (pp-defun "defmacro" name args body))
+    (('declare (forms ...)) (pp-declare forms))
+    (('|`| form)   (pp-quoted #\` form))
+    (('|,| form)   (pp-quoted #\, form))
+    (('quote form) (pp-quoted #\' form))
     ;;------------------------------------------
-    ((,func ,args ...) (pp-form func args))
-    (,any
+    ((func args ...) (pp-form func args))
+    (any
      (cond
       ((pp-type? any) any)
       ((string? any) (print (qstr any)))
@@ -80,8 +80,7 @@
 
 (define (pp-def def)
   (match def
-    ((,sym ,forms ...)
-     (guard (symbol? sym))
+    (((? symbol? sym) sym forms ...)
      (form sym
       (indent-by
        (+ 1 (string-length (symbol->string sym)))
@@ -97,7 +96,7 @@
 (define (pp-cond conditions)
   (define (pp-branch condition)
     (match condition
-      ((,condition ,body ...)
+      ((condition body ...)
        (form 1 (pp condition) (newline-indent) (apply join-lines body))
        )))
   (bracketed
@@ -114,8 +113,8 @@
   (define (pp-decl forms)
     (match forms
       (() (print "()"))
-      ((,func ,args ...) (pp-form func args))
-      (,any (print any))
+      ((func args ...) (pp-form func args))
+      (any (print any))
       ))
   (bracketed
    4 #\( #\) "declare" (newline-indent)

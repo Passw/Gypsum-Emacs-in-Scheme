@@ -136,11 +136,11 @@
         ;; First handle the lexical binding mode, if it exists.
         (let ((form (read-elisp port)))
           (match form
-            ((%set-lexical-binding-mode ,on/off)
+            (`(%set-lexical-binding-mode ,on/off)
              (lens-set on/off st =>env-lexical-mode?!)
              (loop (read-elisp port))
              )
-            (,any (loop form))
+            (any (loop form))
             ))))))
 
 
@@ -250,8 +250,8 @@
   ;; procedure for Emacs Lisp.
   (match expr
     (() '())
-    ((,head ,args ...) (eval-bracketed-form head args))
-    (,literal
+    ((head args ...) (eval-bracketed-form head args))
+    (literal
      (cond
       ((symbol? literal)
        (let ((return (view literal =>elisp-symbol!)))
@@ -268,7 +268,7 @@
   (let loop ((arg-exprs arg-exprs))
     (match arg-exprs
       (() '())
-      ((,expr ,more ...)
+      ((expr more ...)
        (let ((result (eval-form expr)))
          (if (elisp-eval-error-type? result) result
              (cons result (loop more)))
@@ -279,8 +279,8 @@
   (let loop ((exprs exprs))
     (match exprs
       (() '())
-      ((,final) (eval-form final))
-      ((,head ,more ...) (eval-form head) (loop more))
+      ((final) (eval-form final))
+      ((head more ...) (eval-form head) (loop more))
       )))
 
 ;;--------------------------------------------------------------------
@@ -301,7 +301,7 @@
    (lambda expr
      (match (cdr expr)
        (() (eval-error "wrong number of arguments" "prog1" 0))
-       ((,first ,more ...)
+       ((first more ...)
         (let ((return (eval-form first)))
           (eval-progn-body more)
           return
@@ -314,8 +314,8 @@
        (eval-error "wrong number of arguments" "prog2" n))
      (match (cdr expr)
        (() (fail-nargs 0))
-       ((,any) (fail-nargs 1))
-       ((,first ,second ,more ...)
+       ((any) (fail-nargs 1))
+       ((first second more ...)
         (eval-form first)
         (let ((return (eval-form second)))
           (eval-progn-body more)
@@ -329,8 +329,8 @@
      (let loop ((exprs (cdr exprs)))
        (match exprs
          (() (if conjunction #t '()))
-         ((,final) (eval-form final))
-         ((,next ,more ...)
+         ((final) (eval-form final))
+         ((next more ...)
           (let ((success (eval-form next)))
             (if conjunction
                 (if (elisp-null? success) '() (loop more))
@@ -346,8 +346,8 @@
    (lambda exprs
      (match exprs
        (() (eval-error "wrong number of arguments" "if" 0))
-       ((if ,cond-expr) (eval-error "wrong number of arguments" "if" 1))
-       ((if ,cond-expr ,then-exprs ,else-exprs ...)
+       (('if cond-expr) (eval-error "wrong number of arguments" "if" 1))
+       (('if cond-expr then-exprs else-exprs ...)
         (let ((result (eval-form cond-expr)))
           (if (not (elisp-null? result))
               (eval-form then-exprs)
@@ -366,8 +366,8 @@
      (let loop ((exprs (cdr exprs)))
        (match exprs
          (() '())
-         ((() ,more ...) (loop more))
-         (((,cond-expr ,body ...) ,more ...)
+         ((() more ...) (loop more))
+         (((cond-expr body ...) more ...)
           (let-values
               (((success return) (eval-cond cond-expr body)))
             (if success return (loop more))
@@ -379,7 +379,7 @@
    (lambda exprs
      (match (cdr exprs)
        (() (eval-error "wrong number of arguments" "while" 0))
-       ((,cond-expr ,body ...)
+       ((cond-expr body ...)
         (let loop ()
           (let ((success (eval-form cond-expr)))
             (if (not (elisp-null? success))
@@ -395,10 +395,10 @@
        (eval-error "wrong number of arguments" "dotimes" n))
      (match (cdr exprs)
        (() (fail-nargs 0))
-       ((,any) (fail-nargs 1))
-       ((() ,any ...) (eval-error "expecting variable name" "dotimes" '()))
-       (((,var) ,any ...) (eval-error "expecting initial number" "dotimes" var))
-       (((,var ,limit-expr ,final-exprs ...) ,body ...)
+       ((any) (fail-nargs 1))
+       ((() any ...) (eval-error "expecting variable name" "dotimes" '()))
+       (((var) any ...) (eval-error "expecting initial number" "dotimes" var))
+       (((var limit-expr final-exprs ...) body ...)
         (cond
          ((symbol? var)
           (let ((limit (eval-form limit-expr)))
@@ -470,11 +470,11 @@
         (else (eval-error "wrong type argument" "dotimes" var #:expecting "symbol")))
        )
      (match (cdr exprs)
-       (((,var ,list-expr) ,body ...)
+       (((var list-expr) body ...)
         (run var list-expr #f body))
-       (((,var ,list-expr ,result-expr) ,body ...)
+       (((var list-expr result-expr) body ...)
         (run var list-expr result-expr body))
-       (,any (eval-error "wrong number of arguments" "dolist" any))
+       (any (eval-error "wrong number of arguments" "dolist" any))
        ))))
 
 
@@ -505,7 +505,7 @@
          (let loop ((args (cdr args)) (argc 0) (last-bound '()))
            (match args
              (() last-bound)
-             ((,sym ,expr ,more ...)
+             ((sym expr more ...)
               (let ((val (eval-form expr)))
                 (cond
                  ((elisp-eval-error-type? val) val)
@@ -521,7 +521,7 @@
      (let ((st (*the-environment*)))
        (match (cdr expr)
          (() '())
-         (((,bindings ...) ,progn-body ...)
+         (((bindings ...) progn-body ...)
           (let loop ((unbound bindings) (bound '()) (size 0))
             (match unbound
               (()
@@ -529,22 +529,22 @@
                (let ((result (eval-progn-body progn-body)))
                  (env-pop-elstkfrm! st)
                  result))
-              (((,sym) ,more ...)
+              (((sym) more ...)
                (loop more (cons (new-symbol sym '()) bound) (+ 1 size))
                )
-              (((,sym ,expr) ,more ...)
+              (((sym expr) more ...)
                (let ((result (eval-form expr)))
                  (loop more
                        (cons (new-symbol (ensure-string sym) result) bound)
                        (+ 1 size))
                  ))
-              (((,sym ,expr ,extra ...) ,more ...)
+              (((sym expr extra ...) ,more ...)
                (eval-error "bindings can have only one value form" (car unbound))
                )
-              ((,sym ,more ...)
+              ((sym more ...)
                (loop more (cons (new-symbol sym '()) bound) (+ 1 size))
                )
-              (,otherwise
+              (otherwise
                (eval-error "wrong type argument, expecting list" otherwise)
                ))))
          (,otherwise
@@ -558,7 +558,7 @@
      (let ((st (*the-environment*)))
        (match (cdr expr)
          (() '())
-         (((,bindings ...) ,progn-body ...)
+         (((bindings ...) progn-body ...)
           (let ((elstkfrm (env-push-new-elstkfrm! st (length bindings) '())))
             (let loop ((unbound bindings))
               (match unbound
@@ -566,26 +566,26 @@
                  (let ((result (eval-progn-body progn-body)))
                    (env-pop-elstkfrm! st)
                    result))
-                (((,sym) ,more ...)
+                (((sym) more ...)
                  (elstkfrm-sym-intern! elstkfrm sym '())
                  (loop more)
                  )
-                (((,sym ,expr) ,more ...)
+                (((sym expr) more ...)
                  (let ((result (eval-form expr)))
                    (elstkfrm-sym-intern! elstkfrm sym result)
                    (loop more)
                    ))
-                (((,sym ,expr ,extra ...) ,more ...)
+                (((sym expr extra ...) ,more ...)
                  (eval-error "bindings can have only one value form" (car unbound))
                  )
-                ((,sym ,more ...)
+                ((sym more ...)
                  (elstkfrm-sym-intern! elstkfrm sym '())
                  (loop more)
                  )
-                (,otherwise
+                (otherwise
                  (eval-error "wrong type argument, expecting list" otherwise)
                  )))))
-         (,otherwise
+         (otherwise
           (eval-error "wrong type argument, expecting list" otherwise)
           ))))))
 
@@ -596,9 +596,9 @@
      (let ((expr (cdr expr)))
        (match expr
          (() (new-lambda))
-         (((,args ...) ,body ...)
+         (((args ...) body ...)
           (eval-defun-args-body 'lambda args body))
-         (,args (eval-error "invalid lambda" args))
+         (args (eval-error "invalid lambda" args))
          )))))
 
 
@@ -623,10 +623,10 @@
            ))
        (match expr
          (() (eval-error "wrong number of arguments" def '()))
-         ((,sym-expr) (defvar sym-expr #f #f))
-         ((,sym-expr ,val-expr) (defvar sym-expr val-expr #f))
-         ((,sym-expr ,val-expr ,docstr) (defvar sym-expr val-expr docstr))
-         (,any (eval-error "wrong number of arguments" def any))
+         ((sym-expr) (defvar sym-expr #f #f))
+         ((sym-expr val-expr) (defvar sym-expr val-expr #f))
+         ((sym-expr val-expr docstr) (defvar sym-expr val-expr docstr))
+         (any (eval-error "wrong number of arguments" def any))
          )))))
 
 
@@ -638,8 +638,8 @@
            )
        (match expr
          (() (eval-error "wrong number of arguments" def '()))
-         ((,sym) (eval-error "wrong number of arguments" def sym))
-         ((,sym (,args ...) ,body ...)
+         ((sym) (eval-error "wrong number of arguments" def sym))
+         ((sym (args ...) body ...)
           (cond
            ((symbol? sym)
             (let*((func   (eval-defun-args-body def args body))
@@ -670,7 +670,7 @@
               ))
            (else (eval-error "wrong type argument" sym #:expecting "symbol"))
            ))
-         ((,name ,args ,body ...) (eval-error "malformed arglist" args))
+         ((name args body ...) (eval-error "malformed arglist" args))
          )))))
 
 
@@ -702,9 +702,9 @@
   (make<syntax>
    (lambda expr
      (match (cdr expr)
-       ((,sym-expr ,val-expr) (eval-defalias sym-expr val-expr #f))
-       ((,sym-expr ,val-expr ,docstr) (eval-defalias sym-expr val-expr docstr))
-       (,any
+       ((sym-expr val-expr) (eval-defalias sym-expr val-expr #f))
+       ((sym-expr val-expr docstr) (eval-defalias sym-expr val-expr docstr))
+       (any
         (eval-error "wrong number of arguments" "defalias"
          (length any) #:min 2 #:max 3))
        ))))
@@ -718,25 +718,27 @@
   (define (filter body-exprs)
     (match body-exprs
       (() '())
-      (((declare ,args ...) ,body-exprs ...)
+      ((('declare args ...) body-exprs ...)
        (let loop ((args args))
          (match args
            (() #t)
-           (((,sym ,vals ...) ,args ...)
-            (guard (symbol? sym))
-            (lens-set vals
-             func =>lambda-declares*! (=>hash-key! (symbol->string sym)))
-            (loop args))
-           ((,any ,args ...) ;; ignore malformed delcarations
-            (loop args))
+           (((sym vals ...) args ...)
+            (cond
+             ((symbol? sym)
+              (lens-set vals
+               func =>lambda-declares*! (=>hash-key! (symbol->string sym)))
+              (loop args))
+             (else
+              (loop args) ;; ignored malformed declarations
+              )))
            ))
        (filter body-exprs)
        )
-      (((interactive ,args ...) ,body-exprs ...)
+      ((('interactive args ...) body-exprs ...)
        (lens-set args func =>lambda-interactive*!)
        (filter body-exprs)
        )
-      ((,any-expr ,body-exprs ...) ;; anything else, leave it alone
+      ((any-expr body-exprs ...) ;; anything else, leave it alone
        (cons any-expr (filter body-exprs)))
       ))
   (lens-set (filter body-exprs) func =>lambda-body*!)
@@ -750,7 +752,7 @@
     )
   (define (get-body func)
     (match body-expr
-      ((,docstr ,body-expr ...)
+      ((docstr body-expr ...)
        (cond
         ((string? docstr)
          (lens-set docstr func =>lambda-docstring*!)
@@ -759,14 +761,14 @@
         (else
          (set-function-body! func (cons docstr body-expr))
          func)))
-      (,body-expr
+      (body-expr
        (set-function-body! func body-expr)
        func)
       ))
   (define (get-rest-args arg-exprs args optargs)
     (match arg-exprs
       (() (eval-error "invalid function, no argument declaration after &rest delimiter"))
-      ((,sym)
+      ((sym)
        (cond
         ((symbol? sym)
          (get-body (new-lambda kind (reverse args) (reverse optargs) sym)))
@@ -776,11 +778,11 @@
   (define (get-opt-args arg-exprs args optargs)
     (match arg-exprs
       (() (get-body (new-lambda kind (reverse args) (reverse optargs))))
-      ((&optional ,more ...)
+      (('&optional more ...)
        (eval-error "invalid function, more than one &optional argument delimiter" arg-exprs))
-      ((&rest ,arg-exprs ...)
+      (('&rest arg-exprs ...)
        (get-rest-args arg-exprs args optargs))
-      ((,sym ,arg-exprs ...)
+      ((sym arg-exprs ...)
        (cond
         ((symbol? sym) (get-opt-args arg-exprs args (cons sym optargs)))
         (else (non-symbol-error sym))
@@ -789,9 +791,9 @@
   (define (get-args arg-exprs args)
     (match arg-exprs
       (() (get-body (new-lambda kind (reverse args))))
-      ((&optional ,arg-exprs ...) (get-opt-args arg-exprs args '()))
-      ((&rest ,arg-exprs ...) (get-rest-args arg-exprs args '()))
-      ((,sym ,arg-exprs ...)
+      (('&optional arg-exprs ...) (get-opt-args arg-exprs args '()))
+      (('&rest arg-exprs ...) (get-rest-args arg-exprs args '()))
+      ((sym arg-exprs ...)
        (cond
         ((symbol? sym) (get-args arg-exprs (cons sym args)))
         (else (non-symbol-error sym))
@@ -967,15 +969,15 @@
 (define (eval-apply collect args)
   (match args
     (() (eval-error "wrong number of arguments" args))
-    ((,func ,args ...) (eval-bracketed-form func (collect args)))))
+    ((func args ...) (eval-bracketed-form func (collect args)))))
 
 (define (re-collect-args args)
   ;; Collect arguments to `APPLY` and `FUNCALL` into a list single.
   (match args
     (() args)
-    (((,args ...)) args)
-    ((,arg (,args ...)) (cons arg args))
-    ((,arg ,args ...) (cons arg (re-collect-args args)))
+    (((args ...)) args)
+    ((arg (args ...)) (cons arg args))
+    ((arg args ...) (cons arg (re-collect-args args)))
     ))
 
 (define (elisp-funcall . args) (eval-apply (lambda (id) id) args))
@@ -986,7 +988,7 @@
   (make<syntax>
    (lambda args
      (match args
-       ((function ,arg)
+       (('function arg)
         (let ((is-lambda? (lambda (o) (and (pair? o) (symbol? (car o)) (eq? 'lambda (car o)))))
               (make-lambda (lambda (o) (apply (macro-procedure elisp-lambda) o)))
               )
@@ -1003,20 +1005,23 @@
            (else
             (eval-error "wrong type argument" "function" arg)
             ))))
-       (,any (eval-error "wrong number of arguments" "function" #:expecting 1 #:value any))
+       (any (eval-error "wrong number of arguments" "function" #:expecting 1 #:value any))
        ))))
 
 
 (define (elisp-symbol-op name type? op)
   (lambda args
     (match args
-      ((,sym) (guard (type? sym))
-       (scheme->elisp (op (*the-environment*) sym)))
-      ((,sym)
-       (eval-error
-        "wrong type argument" name
-        sym #:expecting "symbol"))
-      (,any
+      ((sym)
+       (cond
+        ((type? sym)
+         (scheme->elisp (op (*the-environment*) sym)))
+        (else
+         (eval-error
+          "wrong type argument" name
+          sym #:expecting "symbol")
+         )))
+      (any
        (eval-error
         "wrong number of arguments" name
         (length any) #:expecting 1))
@@ -1025,16 +1030,16 @@
 (define (elisp-symbol-op2 name type? op)
   (lambda args
     (match args
-      ((,sym ,val)
-       (guard (type? sym))
-       (scheme->elisp (op (*the-environment*) sym (scheme->elisp val)))
-       )
-      ((,sym ,val)
-       (eval-error
-        "wrong type argument" name
-        sym #:expecting "symbol")
-       )
-      (,any
+      ((sym val)
+       (cond
+        ((type? sym)
+         (scheme->elisp (op (*the-environment*) sym (scheme->elisp val))))
+        (else
+         (eval-error
+          "wrong type argument" name
+          sym #:expecting "symbol"))
+        ))
+      (any
        (eval-error
         "wrong number of arguments" name
         (length any) #:expecting 2)
@@ -1042,12 +1047,14 @@
 
 (define (elisp-make-symbol . args)
   (match args
-    ((,name)
-     (guard (symbol/string? name))
-     (eval-make-symbol (ensure-string name)))
-    ((,name)
-     (eval-error "wrong type argument" name #:expecting "symbol or string"))
-    (,any
+    ((name)
+     (cond
+      ((symbol/string? name)
+       (eval-make-symbol (ensure-string name)))
+      (else
+       (eval-error "wrong type argument" name #:expecting "symbol or string"))
+      ))
+    (any
      (eval-error "wrong number of arguments" "make-symbol"
       (length any) #:expecting 1))
     ))
@@ -1072,10 +1079,10 @@
 
 (define (elisp-mapatoms . args)
   (match args
-    ((,func) (eval-mapatoms (eval-apply-as-proc func)))
-    ((,func ,obarray)
+    ((func) (eval-mapatoms (eval-apply-as-proc func)))
+    ((func obarray)
      (eval-mapatoms (eval-apply-as-proc func) obarray))
-    ((,any ...)
+    ((any ...)
      (eval-error "wrong number of arguments" "mapatoms" (length any)))
     ))
 
@@ -1093,16 +1100,13 @@
 
 (define (elisp-put . args)
   (match args
-    ((,sym ,prop ,val)
-     (guard (symbol? sym))
-     (if (symbol? prop)
-         (eval-put
-          (*the-environment*)
-          (symbol->string sym)
-          (symbol->string prop)
-          val)
-         val))
-    (,args
+    ((sym prop val)
+     (eval-put
+      (*the-environment*)
+      (symbol->string sym)
+      (symbol->string prop)
+      val))
+    (args
      (eval-error
       "wrong number of arguments" "put"
       (length args) #:expecting 3))
@@ -1144,9 +1148,9 @@
   (make<syntax>
    (lambda args
      (match (cdr args)
-       ((,expr) expr)
-       ((,expr ,extra ...) (eval-error "wrong number of arguments" "quote" extra))
-       (,any any)
+       ((expr) expr)
+       ((expr extra ...) (eval-error "wrong number of arguments" "quote" extra))
+       (any any)
        ))))
 
 
@@ -1154,14 +1158,14 @@
   (make<syntax>
    (lambda exprs
      (match (cdr exprs)
-       ((,exprs)
+       ((exprs)
         (let expr-loop ((exprs exprs))
           (match exprs
             (() '())
-            (((|,| ,unq) ,exprs ...)
+            ((('|,| unq) exprs ...)
              (cons (eval-form unq) (expr-loop exprs))
              )
-            (((|,@| ,splice) ,exprs ...)
+            ((('|,@| splice) exprs ...)
              (let ((elems (eval-form splice)))
                (let elem-loop ((elems elems))
                  (cond
@@ -1170,13 +1174,13 @@
                   (else (cons elems (expr-loop exprs)))
                   )))
              )
-            (((,sub-exprs ...) ,exprs ...)
+            (((sub-exprs ...) exprs ...)
              (cons (expr-loop sub-exprs) (expr-loop exprs))
              )
-            ((,elem ,exprs ...) (cons elem (expr-loop exprs)))
-            (,elem elem)
+            ((elem exprs ...) (cons elem (expr-loop exprs)))
+            (elem elem)
             )))
-       (,any (eval-error "wrong number of arguments" "backquote" any))
+       (any (eval-error "wrong number of arguments" "backquote" any))
        ))))
 
 
@@ -1189,7 +1193,7 @@
      (let loop ((depth depth) (expr expr))
        (match expr
          (() '())
-         ((,label ,args ...)
+         ((label args ...)
           (let ((args
                  (if all
                      (map (lambda (expr) (loop depth expr)) args)
@@ -1210,15 +1214,15 @@
                  (else (cons label args))
                  )))
              (else (cons label args)))))
-         (,any any)
+         (any any)
          )))))
 
 (define (elisp-macroexpander all depth fail-depth)
   (lambda expr
     (match expr
-      ((,expr) ((eval-macroexpander all depth fail-depth) expr))
-      ((,expr ,env) ((eval-macroexpander all depth fail-depth) expr env))
-      (,any (eval-error "wrong number of arguments" "macroexpand" any))
+      ((expr) ((eval-macroexpander all depth fail-depth) expr))
+      ((expr env) ((eval-macroexpander all depth fail-depth) expr env))
+      (any (eval-error "wrong number of arguments" "macroexpand" any))
       )))
 
 (define elisp-macroexpand
@@ -1233,7 +1237,7 @@
 
 (define (elisp-format . args)
   (match args
-    ((,fstr ,args ...)
+    ((fstr args ...)
      (cond
       ((string? fstr) (scheme->elisp (apply format fstr args)))
       (else (eval-error "wrong type argument" fstr #:expecting "string"))
@@ -1242,10 +1246,10 @@
 
 (define (elisp-prin1 . args)
   (match args
-    ((,val) ((*impl/prin1*) val) val)
-    ((,val ,port) ((*impl/prin1*) val port) val)
-    ((,val ,port ,overrides) ((*impl/prin1*) val port overrides) val)
-    (,any
+    ((val) ((*impl/prin1*) val) val)
+    ((val port) ((*impl/prin1*) val port) val)
+    ((val port overrides) ((*impl/prin1*) val port overrides) val)
+    (any
      (eval-error
       "wrong number of arguments" "prin1"
       (length any) #:min 1 #:max 3))
@@ -1253,9 +1257,9 @@
 
 (define (elisp-princ . args)
   (match args
-    ((,val) ((*impl/princ*) val) val)
-    ((,val ,port) ((*impl/princ*) val port) val)
-    (,any (eval-error "wrong number of arguments" "princ" #:min 1 #:max 2))
+    ((val) ((*impl/princ*) val) val)
+    ((val port) ((*impl/princ*) val port) val)
+    (any (eval-error "wrong number of arguments" "princ" #:min 1 #:max 2))
     ))
 
 (define eval-print
@@ -1269,15 +1273,15 @@
 
 (define (elisp-print . args)
   (match args
-    ((,val) (eval-print val))
-    ((,val ,port) (eval-print val port))
-    (,any (eval-error "wrong number of arguments" "print" #:min 1 #:max 2))
+    ((val) (eval-print val))
+    ((val port) (eval-print val port))
+    (any (eval-error "wrong number of arguments" "print" #:min 1 #:max 2))
     ))
 
 (define (elisp-message . args)
   (match args
     (() (eval-error "wrong number of arguments" "message" #:min 1))
-    ((,format-str ,args ...)
+    ((format-str args ...)
      (let ((port (*elisp-error-port*)))
        (apply format-to-port port format-str args)
        (newline port)
@@ -1287,12 +1291,12 @@
 
 (define (elisp-load . args)
   (match args
-    ((,filepath)
+    ((filepath)
      (cond
       ((string? filepath) (elisp-load! filepath (*the-environment*)))
       (else (eval-error "wrong type argument" filepath #:expecting "string"))
       ))
-    (,any
+    (any
      (eval-error "wrong number of arguments" "load"
       (length any) #:min 1 #:max 2))
     ))
@@ -1304,10 +1308,10 @@
 (define (elisp-make-keymap . args)
   (match args
     (() (keymap))
-    ((,name)
+    ((name)
      (let ((km (keymap)))
        (lens-set name km =>keymap-label!) km))
-    (,any
+    (any
      (eval-error
       "wrong number of arguments"
       "make-keymap" #:min 0 #:max 1))
@@ -1327,11 +1331,11 @@
       binding
       ))
   (match args
-    ((,keymap ,key ,binding)
+    ((keymap key binding)
      (define-key keymap key binding #f))
-    ((,keymap ,key ,binding ,remove)
+    ((keymap key binding remove)
      (define-key keymap key binding remove))
-    (,any
+    (any
      (eval-error
       "wrong number of arguments"
       "define-key" #:min 3 #:max 4))

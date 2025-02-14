@@ -6,7 +6,7 @@
           display
           write
           )
-    (only (rapid match) match)
+    (only (chibi match) match)
     (only (gypsum pretty)
           print-to-port
           pretty   print  qstr   line-break

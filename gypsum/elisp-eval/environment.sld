@@ -44,7 +44,7 @@
           new-cursor  cursor-ref  cursor-step!
           cursor-end?  cursor-type?
           cursor-collect-list  new-cursor-if-iterable)
-    (only (rapid match) match match* -> unquote guard)
+    (only (chibi match) match)
     )
 
   (export

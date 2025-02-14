@@ -835,7 +835,7 @@
       (let loop ((checking args))
         (match checking
           (() (scheme->elisp (apply proc args)))
-          ((,arg ,checking ...)
+          ((arg checking ...)
            (if (type-ok? arg)
                (loop checking)
                (eval-error "wrong type argument" sym arg #:expecting type-sym))
