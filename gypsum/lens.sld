@@ -79,7 +79,7 @@
    =>assoc-by  =>assoc  =>assv  =>assq
 
    ;; Vectors
-   =>vector-index* ! =>vector-index!
+   =>vector-index*! =>vector-index!
    *default-vector-constructor*  *default-vector-copier*
 
    ;; Hash tables
