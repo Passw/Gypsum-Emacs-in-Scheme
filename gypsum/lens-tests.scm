@@ -11,25 +11,8 @@
         hash-table->alist
         hash-table-walk
         )
+  (gypsum test)
   )
-(cond-expand
-  (stklos
-   (import
-     (only (rapid test)
-           test-begin test-end
-           test-assert test-equal
-           ))
-   )
-  (gambit
-   (import (srfi 64)))
-  (else
-   (import
-     (only (srfi 64)
-           test-begin test-end
-           test-assert test-equal
-           )))
-  )
-
 
 ;; -------------------------------------------------------------------------------------------------
 

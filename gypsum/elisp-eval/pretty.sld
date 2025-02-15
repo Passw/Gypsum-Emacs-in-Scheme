@@ -5,7 +5,7 @@
     (scheme base)
     (scheme write)
     (scheme case-lambda)
-    (only (rapid match) match guard)
+    (only (chibi match) match)
     (only (gypsum pretty)
           pretty   print   qstr   pp-type?
           indent-by   newline-indent   line-break

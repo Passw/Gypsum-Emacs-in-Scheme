@@ -42,13 +42,6 @@
     )
 
   (cond-expand
-    ((or guile (library (srfi 28)))
-     (import (only (srfi 28) format))
-     )
-    (else (import (only (rapid format) format)))
-    )
-
-  (cond-expand
     (gambit
      ;; do nothing: SRFI 60 APIs are built-in to Gambit,
      ;; but the library (srfi 60) is not provided.

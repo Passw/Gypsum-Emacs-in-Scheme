@@ -1,7 +1,7 @@
 (import
   (scheme base)
   (scheme case-lambda)
-  (srfi 64) ;;testing
+  (gypsum test) ;;testing
   ;;(srfi  1) ;;lists
   (only (scheme file) open-input-file open-binary-input-file)
   (only (srfi 111) box box? unbox set-box!)

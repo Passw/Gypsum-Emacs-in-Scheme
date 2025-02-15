@@ -33,7 +33,7 @@
           cursor-end?  cursor-type?
           cursor-collect-list  new-cursor-if-iterable
           )
-    (only (rapid match) match)
+    (only (chibi match) match)
     (prefix (gypsum editor-impl) *impl/)
     (only (gypsum elisp-eval parser) read-elisp)
     (only (gypsum elisp-eval environment)
