@@ -196,7 +196,6 @@
   ;; new table. If the table is not unbalanced, the given hash table
   ;; is returned unmodified.
   ;;------------------------------------------------------------------
-  ;;(display (format "(char-table-rebalance! (~a))\n" kt))
   (let ((rebalance!
          (lambda (bin-hash-char-table)
            (char-table-bin-rebalance! bin-hash-char-table))))
@@ -840,7 +839,6 @@ The ~PROC~ argument may be a procedure, or it may be another
         (let*((assoc  (car alist))
               (key    (car assoc))
               (=>key? (=>keymap-layer-index! key)))
-          ;;(display (format "#;(keymap-layer-update! on key ~a)\n" key))
           (loop
            (cdr alist)
            (let ((km

@@ -6,27 +6,8 @@
   (only (gypsum pretty)
         pretty print qstr repeat join-by bracketed
         indent-by newline-indent line-break)
+  (gypsum test)
   )
-(cond-expand
-  (guile
-   ;; There is a bug in Guile `cond-expand`, if Guile tries to
-   ;; evaluate the next conditional clause it fails. This conditional
-   ;; clause exists to prevent the next clause from being evaluated.
-   (import
-     (only (srfi 64)  ; test suite
-           test-begin test-end test-assert test-eq test-equal
-           )
-     ))
-  ((library (srfi 64))
-   (import
-     (only (srfi 64)  ; test suite
-           test-begin test-end test-assert test-eq test-equal
-           )))
-  (else
-   (import
-     (only (rapid test)
-           test-begin test-assert test-eq test-equal))
-   ))
 
 (cond-expand
   (guile

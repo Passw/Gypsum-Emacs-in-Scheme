@@ -1,7 +1,7 @@
 (import
   (scheme base)
   (scheme case-lambda)
-  (srfi 64) ;;testing
+  (gypsum test) ;;testing
   ;;(srfi  1) ;;lists
   (only (scheme file) open-input-file open-binary-input-file)
   (only (srfi 111) box box? unbox set-box!)
@@ -62,7 +62,7 @@
 
 (test-equal "hello" (test-elisp-eval! "hello"))
 
-(test-eqv 3 (test-elisp-eval! '(+ 1 2)))
+(test-equal 3 (test-elisp-eval! '(+ 1 2)))
 
 (test-eq #t (test-elisp-eval! '(eq nil nil)))
 

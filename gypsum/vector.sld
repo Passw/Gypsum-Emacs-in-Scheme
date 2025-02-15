@@ -19,6 +19,8 @@
                (vector-fold old-vector-fold)))
      (include "vector.scm")
      )
+    (mit
+     (import (srfi 133)))
     (else
      ;; We need this second "cond-expand" layer here because Guile
      ;; does not seem to fully conform to the R7RS standard yet -- the
