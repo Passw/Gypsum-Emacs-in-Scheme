@@ -954,8 +954,13 @@
   (not (not (eval-symbol-function st sym))))
 
 (define (eval-fset st sym func)
-  (update-on-symbol st sym
-   (lambda (obj) (values (lens-set (elisp->scheme func) obj =>sym-function!) func))))
+  (let ((sym (ensure-string sym)))
+    (update-on-symbol st sym
+     (lambda (obj)
+       (values
+        (lens-set (elisp->scheme func) obj (=>sym-function! sym))
+        func
+        )))))
 
 (define (eval-fmakunbound st sym)
   (view-on-symbol st sym (lambda (obj) (view st (=>env-obarray-key! sym)))))
