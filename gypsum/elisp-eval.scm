@@ -150,9 +150,77 @@
      (elisp-load! filepath (*the-environment*))
      )
     ((filepath st)
-     (eval-iterate-forms st filepath
-      (lambda (form) (elisp-eval! form st))))
+     (let ((name "load-file-name"))
+       (define (setq-load-file-name val)
+         (lens-set val st
+          (=>env-obarray-key! name)
+          (=>sym-value! name))
+         )
+       (setq-load-file-name filepath)
+       (let ((result
+              (eval-iterate-forms st filepath
+               (lambda (form) (elisp-eval! form st))))
+             )
+         (exec-run-hooks (list name) (list filepath))
+         (setq-load-file-name nil)
+         result
+         )))
     ))
+
+
+(define exec-run-hooks
+  (case-lambda
+    ((hook-list args-list)
+     (exec-run-hooks #f hook-list args-list)
+     )
+    ((until-val hook-list args-list)
+     (define (until-failure result loop hook-list)
+       (if (eq? result nil) #f (loop hook-list))
+       )
+     (define (until-success result loop hook-list)
+       (if (eq? result nil) (loop hook-list) #f)
+       )
+     (define (until-end result loop hook-list)
+       (loop hook-list)
+       )
+     (let ((recurse
+            (cond
+             ((not until-val) until-end)
+             ((eq? until-val 'failure) until-failure)
+             ((eq? until-val 'success) until-success)
+             (else (error "loop control symbol" until-val))
+             )))
+       (let loop ((hook-list hook-list))
+         (cond
+          ((pair? hook-list)
+           (let*((hook-name (ensure-string (car hook-list)))
+                 (hook-list (cdr hook-list))
+                 (result (eval-bracketed-form hook-name args-list))
+                 )
+             (recurse result loop hook-list)
+             ))
+          (else #f)
+          ))))
+    ))
+
+
+(define (elisp-run-hooks . args) (exec-run-hooks args '()))
+
+(define (elisp-hook-runner name control)
+  (lambda args
+    (match args
+      (() (eval-error "wrong number of arguments" name 0 #:min 1))
+      ((hook args ...) (exec-run-hooks control (list hook) args))
+      ))
+  )
+
+(define elisp-run-hooks-with-args (elisp-hook-runner "run-hooks-with-args" #f))
+
+(define elisp-run-hooks-with-args-until-failure
+  (elisp-hook-runner "run-hooks-with-args-until-failure" 'failure))
+
+(define elisp-run-hooks-with-args-until-success
+  (elisp-hook-runner "run-hooks-with-args-until-success" 'success))
 
 ;;====================================================================
 ;; The interpreting evaluator. Matches patterns on the program and
@@ -1359,7 +1427,11 @@
 
      ,nil
      ,t
-     ,(new-symbol "noninteractive" #t)
+     ,(new-symbol "load-path" nil)
+     ,(new-symbol "load-file-name")
+     ,(new-symbol "noninteractive" t)
+     ,(new-symbol "after-load-functions" nil)
+     ,(new-symbol "features" nil)
 
      (lambda    . ,elisp-lambda)
      (apply    . ,elisp-apply)
@@ -1446,6 +1518,11 @@
      (make-keymap        . ,elisp-make-keymap)
      (make-sparse-keymap . ,elisp-make-keymap)
      (define-key         . ,elisp-define-key)
+
+     (run-hooks                         , ,elisp-run-hooks)
+     (run-hooks-with-args               . ,elisp-run-hooks-with-args)
+     (run-hooks-with-args-until-failure . ,elisp-run-hooks-with-args-until-failure)
+     (run-hooks-with-args-until-success . ,elisp-run-hooks-with-args-until-success)
 
      ;; ------- end of assocaition list -------
      )))
