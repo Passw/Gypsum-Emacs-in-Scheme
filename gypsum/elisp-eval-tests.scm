@@ -284,6 +284,32 @@
       (list a b c d)
       )))
 
+
+(test-assert
+  (test-elisp-eval!
+   '(progn
+      (defun test-optargs (&optional x y)
+        (cond
+         ((and (null x) (null y)) '(17 23))
+         ((null x) (list y y))
+         ((null y) (list x x))
+         (t (list (+ x y) (* x y)))
+         ))
+      t
+      )))
+
+(test-equal '(17 23)
+  (test-elisp-eval! '(test-optargs)))
+
+(test-equal '(29 29)
+  (test-elisp-eval! '(test-optargs 29)))
+
+(test-equal '(31 31)
+  (test-elisp-eval! '(test-optargs nil 31)))
+
+(test-equal '(12 35)
+  (test-elisp-eval! '(test-optargs 5 7)))
+
 ;;--------------------------------------------------------------------------------------------------
 
 (define (test-elisp-eval-both-ports! expr)
