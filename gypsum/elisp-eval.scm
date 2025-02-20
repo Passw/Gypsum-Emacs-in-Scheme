@@ -174,6 +174,7 @@
      (exec-run-hooks #f hook-list args-list)
      )
     ((until-val hook-list args-list)
+     (display ";;exec-run-hooks ")(write hook-list)(newline);;DEBUG
      (define (until-failure result loop hook-list)
        (if (eq? result nil) #f (loop hook-list))
        )
@@ -183,24 +184,78 @@
      (define (until-end result loop hook-list)
        (loop hook-list)
        )
-     (let ((recurse
+     (let ((st (*the-environment*))
+           (recurse
             (cond
              ((not until-val) until-end)
              ((eq? until-val 'failure) until-failure)
              ((eq? until-val 'success) until-success)
              (else (error "loop control symbol" until-val))
-             )))
-       (let loop ((hook-list hook-list))
+             ))
+           )
+       (define (third hook)
+         (display ";; third indirection: ")(write hook)(newline);;DEBUG
+         ;; Final level of indirection: `HOOK` must be a symbol
+         ;; object, must contain a callable function.
+         (let*((name (symbol->string hook))
+               (func (view st
+                      (=>env-symbol! name)
+                      (=>sym-function! name)
+                      ))
+               )
+           (cond
+            (hook
+             (display ";; eval-apply-lambda ")(write func)(newline);;DEBUG
+             (eval-apply-lambda func args-list))
+            (else (eval-error "void variable" hook)))
+           ))
+       (define (second hook)
+         (display ";; second indirection: ")(write hook)(newline);;DEBUG
+         ;; Second level of indirection. A hook must be a symbol or a
+         ;; list of symbols, each symbol must resolve to a function
+         ;; that can be evaluated.
+         (cond
+          ((null? hook) #f)
+          ((and (pair? hook) (symbol? (car hook)))
+           (recurse (third (car hook)) second (cdr hook)))
+          ((symbol? hook) (third hook))
+          (else
+           (eval-error "wrong type argument" hook #:expecting "symbol or list")
+           )))
+       (define (first hook-list)
+         ;; First level of indirection. A hook must be a symbol that
+         ;; resolves to a symbol or list of symbols.
+         (display ";; first indirection: ")(write hook-list)(newline);;DEBUG
          (cond
           ((pair? hook-list)
-           (let*((hook-name (ensure-string (car hook-list)))
+           (let*((hook-name (car hook-list))
                  (hook-list (cdr hook-list))
-                 (result (eval-bracketed-form hook-name args-list))
                  )
-             (recurse result loop hook-list)
+             (cond
+              ((symbol? hook-name)
+               (let*((name (symbol->string hook-name))
+                     (hook
+                      (view st
+                       (=>env-symbol! name)
+                       (=>sym-value! name)))
+                     (result (second hook))
+                     )
+                 (recurse result first hook-list)
+                 ))
+              (else
+               (eval-error "wrong type argument" hook-name #:expecting "symbol")
+               ))
              ))
           (else #f)
-          ))))
+          ))
+       (cond
+        ((null? hook-list) #f)
+        ((pair? hook-list) (first hook-list))
+        ((symbol? hook-list) (first (list hook-list)))
+        (else
+         (eval-error "wrong type argument" hook-list
+          #:expecting "symbol or symbol list"))
+        )))
     ))
 
 
@@ -421,6 +476,26 @@
               (eval-form then-exprs)
               (eval-progn-body else-exprs)
               )))))))
+
+
+(define elisp-when-unless
+  (make<syntax>
+   (lambda exprs
+     (define (is   cond) (not (elisp-null? cond)))
+     (define (isnt cond) (elisp-null? cond))
+     (define (eval on-bool cond-expr body-expr)
+       (let ((result (eval-form cond-expr)))
+         (if (not (on-bool result)) #f
+             (eval-progn-body body-expr))
+         ))
+     (match exprs
+       (() (eval-error "wrong number of arguments" "when or unless" #:min 1))
+       (('when   cond-expr body-expr ...)
+        (eval is   cond-expr body-expr))
+       (('unless cond-expr body-expr ...)
+        (eval isnt cond-expr body-expr))
+       (any (eval-error "wrong number of arguments" (car any) #:min 1))
+       ))))
 
 
 (define elisp-cond
@@ -1451,6 +1526,8 @@
 
      (cond     . ,elisp-cond)
      (if       . ,elisp-if)
+     (when     . ,elisp-when-unless)
+     (unless   . ,elisp-when-unless)
      (or       . ,elisp-or)
      (and      . ,elisp-and)
      (while    . ,elisp-while)
@@ -1519,7 +1596,7 @@
      (make-sparse-keymap . ,elisp-make-keymap)
      (define-key         . ,elisp-define-key)
 
-     (run-hooks                         , ,elisp-run-hooks)
+     (run-hooks                         . ,elisp-run-hooks)
      (run-hooks-with-args               . ,elisp-run-hooks-with-args)
      (run-hooks-with-args-until-failure . ,elisp-run-hooks-with-args-until-failure)
      (run-hooks-with-args-until-success . ,elisp-run-hooks-with-args-until-success)
