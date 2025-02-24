@@ -381,41 +381,52 @@
   ;; message if the pattern (mapping symbols to arguments) does not
   ;; match. If (3) is not `#F` then (1) and (2) must be `#F`. If (1)
   ;; and (2) are not `#F` then (3) must be `#F`.
-  (let loop ((stack '()) (syms syms) (opts opts) (args args) (count 0))
+  (define (bind-rest args count stack)
     (cond
-     ((null? args)
+     (rest
+      (values
+       (cons (cons rest (if (null? args) nil args)) stack)
+       (+ 1 count)
+       #f))
+     ((null? args) (values stack count #f))
+     (else
+      (values #f #f
+       (make<elisp-eval-error> "too many arguments" #f)))
+     ))
+  (define (bind-opts opts args count stack)
+    (cond
+     ((pair? opts)
       (cond
-       ((pair? syms)
-        (values #f #f (make<elisp-eval-error> "not enough arguments" #f)))
-       ((null? syms)
-        (values stack count #f))
-       (else (error "not a list" syms)))
-      )
-     ((pair? args)
-      (cond
-       ((pair? syms)
-        (loop
-         (cons (cons (car syms) (car args)) stack)
-         (cdr syms) opts (cdr args) (+ 1 count))
+       ((pair? args)
+        (bind-opts
+         (cdr opts) (cdr args) (+ 1 count)
+         (cons (cons (car opts) (car args)) stack))
         )
-       ((null? syms)
-        (cond
-         ((pair? opts)
-          (loop
-           (cons (cons (car opts) (car args)) stack)
-           '() (cdr opts) (cdr args) (+ 1 count))
-          )
-         ((null? opts)
-          (cond
-           (rest (values (cons (cons rest args) stack) (+ 1 count) #f))
-           (else (values #f #f (make<elisp-eval-error> "too many arguments" #f)))
-           ))
-         (else (error "(optional bindings) not a list" opts))
+       (else
+        (bind-opts
+         (cdr opts) '() (+ 1 count)
+         (cons (cons (car opts) nil) stack)
          ))
-       (else (error "(required bindings) not a list" syms))
        ))
-     (else (error "(applied arguments) not a list" args)))
-    ))
+     (else (bind-rest args count stack))
+     ))
+  (define (bind-syms syms args count stack)
+    (cond
+     ((pair? syms)
+      (cond
+       ((pair? args)
+        (bind-syms
+         (cdr syms) (cdr args) (+ 1 count)
+         (cons (cons (car syms) (car args)) stack))
+        )
+       (else
+        (values #f #f
+         (make<elisp-eval-error> "not enough arguments" #f))
+        )))
+     (else (bind-opts opts args count stack))
+     ))
+  (bind-syms syms args 0 '())
+  )
 
 
 (define (elstkfrm-from-args func args)
@@ -433,7 +444,9 @@
         ))
     (cond
      (failed
-      (lens-set (list func args) failed =>elisp-eval-error-irritants))
+      (lens-set (list func args) failed =>elisp-eval-error-irritants)
+      failed
+      )
      (else
       (alist->hash-table assocs)))
     ))

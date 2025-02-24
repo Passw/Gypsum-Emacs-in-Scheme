@@ -174,7 +174,6 @@
      (exec-run-hooks #f hook-list args-list)
      )
     ((until-val hook-list args-list)
-     (display ";;exec-run-hooks ")(write hook-list)(newline);;DEBUG
      (define (until-failure result loop hook-list)
        (if (eq? result nil) #f (loop hook-list))
        )
@@ -194,7 +193,6 @@
              ))
            )
        (define (third hook)
-         (display ";; third indirection: ")(write hook)(newline);;DEBUG
          ;; Final level of indirection: `HOOK` must be a symbol
          ;; object, must contain a callable function.
          (let*((name (symbol->string hook))
@@ -205,12 +203,10 @@
                )
            (cond
             (hook
-             (display ";; eval-apply-lambda ")(write func)(newline);;DEBUG
              (eval-apply-lambda func args-list))
             (else (eval-error "void variable" hook)))
            ))
        (define (second hook)
-         (display ";; second indirection: ")(write hook)(newline);;DEBUG
          ;; Second level of indirection. A hook must be a symbol or a
          ;; list of symbols, each symbol must resolve to a function
          ;; that can be evaluated.
@@ -225,7 +221,6 @@
        (define (first hook-list)
          ;; First level of indirection. A hook must be a symbol that
          ;; resolves to a symbol or list of symbols.
-         (display ";; first indirection: ")(write hook-list)(newline);;DEBUG
          (cond
           ((pair? hook-list)
            (let*((hook-name (car hook-list))
@@ -310,15 +305,19 @@
   ;; expansion regardless of the `LAMBDA-KIND` of the `FUNC` argument.
   (eval-apply-proc
    (lambda args
-     (let*((elstkfrm (elstkfrm-from-args func args))
-           (st (*the-environment*))
-           (old-stack (view st =>env-lexstack*!))
-           (st (lens-set (list elstkfrm) st =>env-lexstack*!))
-           (return (eval-progn-body (view func =>lambda-body*!))) ;; apply
-           )
-       (lens-set old-stack st =>env-lexstack*!)
-       return
-       ))
+     (let ((elstkfrm (elstkfrm-from-args func args)))
+       (cond
+        ((not elstkfrm) (error "elstkfrm-from-args returned #f"))
+        ((elisp-eval-error-type? elstkfrm) (eval-raise elstkfrm))
+        (else
+         (let*((st (*the-environment*))
+               (old-stack (view st =>env-lexstack*!))
+               (st (lens-set (list elstkfrm) st =>env-lexstack*!))
+               (return (eval-progn-body (view func =>lambda-body*!))) ;; apply
+               )
+           (lens-set old-stack st =>env-lexstack*!)
+           return
+           )))))
    args))
 
 
