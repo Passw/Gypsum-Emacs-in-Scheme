@@ -24,7 +24,7 @@ code.
 
 - [`(gypsum pretty)`](../../../wiki/PrettyPrinter.md): a pretty printer
 - [`(gypsum cursor)`](../../../wiki/Cursor.md): an iterator-like object
-- [`(rapid match)`](../../../wiki/RapidMatch.md): a tiny, portable pattern matcher
+- [`(gypsum elisp-eval environment)`](../../../wiki/ElispEnvironments.md): the environments in which Emacs Lisp code evaluates
 
 ## How to help contribute code
 
