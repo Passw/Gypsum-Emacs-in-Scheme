@@ -207,6 +207,11 @@
         (list a '+ b '= (+ a b)))
       '(1 2)))))
 
+(test-equal '() (test-elisp-eval! '(apply (lambda () t nil) '())))
+(test-equal #t  (test-elisp-eval! '(apply (lambda () nil t) '())))
+(test-equal '() (test-elisp-eval! '(apply '(lambda () t nil) '())))
+(test-equal #t  (test-elisp-eval! '(apply '(lambda () nil t) '())))
+
 (test-equal '(2 + 3 = 5)
   (test-elisp-eval!
    '(progn
@@ -214,7 +219,6 @@
      (defun f (a b) (list a '+ b '= (+ a b)))
      (f 2 3)
      )))
-
 
 (test-equal '(13 + 21 = 34)
   (test-elisp-eval!
@@ -566,7 +570,7 @@ top: glo = top
       ramin-hook-test
       )))
 
-(test-eqv '(4 3)
+(test-equal '(4 3)
   (test-elisp-eval!
    '(list
      (progn
@@ -585,7 +589,7 @@ top: glo = top
        )
     )))
 
-(test-eqv '(3 4)
+(test-equal '(3 4)
   (test-elisp-eval!
    '(list
      (progn

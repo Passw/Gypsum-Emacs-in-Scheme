@@ -373,6 +373,15 @@
     (hash-table-set! elstkfrm name obj)
     obj))
 
+(define (assocs->elstkfrm size assocs)
+  (let ((elstkfrm (new-elstkfrm size)))
+    (for-each
+     (lambda (pair)
+       (elstkfrm-sym-intern! elstkfrm (car pair) (cdr pair)))
+     assocs
+     )
+    elstkfrm
+    ))
 
 (define (elstkfrm-zip-args syms opts rest args)
   ;; Construct an association list mapping symbols to
@@ -385,7 +394,7 @@
     (cond
      (rest
       (values
-       (cons (cons rest (if (null? args) nil args)) stack)
+       (cons (cons rest args) stack)
        (+ 1 count)
        #f))
      ((null? args) (values stack count #f))
@@ -405,7 +414,7 @@
        (else
         (bind-opts
          (cdr opts) '() (+ 1 count)
-         (cons (cons (car opts) nil) stack)
+         (cons (cons (car opts) '()) stack)
          ))
        ))
      (else (bind-rest args count stack))
@@ -447,8 +456,7 @@
       (lens-set (list func args) failed =>elisp-eval-error-irritants)
       failed
       )
-     (else
-      (alist->hash-table assocs)))
+     (else (assocs->elstkfrm count assocs)))
     ))
 
 ;;--------------------------------------------------------------------

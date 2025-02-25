@@ -175,10 +175,10 @@
      )
     ((until-val hook-list args-list)
      (define (until-failure result loop hook-list)
-       (if (eq? result nil) #f (loop hook-list))
+       (if (elisp-null? result) #f (loop hook-list))
        )
      (define (until-success result loop hook-list)
-       (if (eq? result nil) (loop hook-list) #f)
+       (if (elisp-null? result) (loop hook-list) #f)
        )
      (define (until-end result loop hook-list)
        (loop hook-list)
@@ -211,6 +211,7 @@
          ;; list of symbols, each symbol must resolve to a function
          ;; that can be evaluated.
          (cond
+          ((not   hook) #f)
           ((null? hook) #f)
           ((and (pair? hook) (symbol? (car hook)))
            (recurse (third (car hook)) second (cdr hook)))
@@ -266,11 +267,11 @@
 
 (define elisp-run-hooks-with-args (elisp-hook-runner "run-hooks-with-args" #f))
 
-(define elisp-run-hooks-with-args-until-failure
-  (elisp-hook-runner "run-hooks-with-args-until-failure" 'failure))
+(define elisp-run-hook-with-args-until-failure
+  (elisp-hook-runner "run-hook-with-args-until-failure" 'failure))
 
-(define elisp-run-hooks-with-args-until-success
-  (elisp-hook-runner "run-hooks-with-args-until-success" 'success))
+(define elisp-run-hook-with-args-until-success
+  (elisp-hook-runner "run-hook-with-args-until-success" 'success))
 
 ;;====================================================================
 ;; The interpreting evaluator. Matches patterns on the program and
@@ -362,6 +363,15 @@
      ((procedure?    func)
       (env-trace! st (cons head func)
        (lambda () (eval-apply-proc func arg-exprs))))
+     ((pair?         func)
+      (match func
+        (('lambda (args-exprs ...) body ...)
+         (let ((func (apply (syntax-eval elisp-lambda) func)))
+           (env-trace! st (cons head func)
+            (lambda () (eval-apply-lambda func arg-exprs))
+            )))
+        (any (eval-error "invalid function" func))
+        ))
      (else (eval-error "invalid function" head))
      )
     ))
@@ -403,6 +413,7 @@
       (() '())
       ((final) (eval-form final))
       ((head more ...) (eval-form head) (loop more))
+      (exprs (error "no function body" exprs))
       )))
 
 ;;--------------------------------------------------------------------
@@ -1595,10 +1606,10 @@
      (make-sparse-keymap . ,elisp-make-keymap)
      (define-key         . ,elisp-define-key)
 
-     (run-hooks                         . ,elisp-run-hooks)
-     (run-hooks-with-args               . ,elisp-run-hooks-with-args)
-     (run-hooks-with-args-until-failure . ,elisp-run-hooks-with-args-until-failure)
-     (run-hooks-with-args-until-success . ,elisp-run-hooks-with-args-until-success)
+     (run-hooks                        . ,elisp-run-hooks)
+     (run-hooks-with-args              . ,elisp-run-hooks-with-args)
+     (run-hook-with-args-until-failure . ,elisp-run-hook-with-args-until-failure)
+     (run-hook-with-args-until-success . ,elisp-run-hook-with-args-until-success)
 
      ;; ------- end of assocaition list -------
      )))
