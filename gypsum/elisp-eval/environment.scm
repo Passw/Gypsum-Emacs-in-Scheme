@@ -383,80 +383,55 @@
     elstkfrm
     ))
 
-(define (elstkfrm-zip-args syms opts rest args)
-  ;; Construct an association list mapping symbols to
-  ;; arguments. Returns three values: (1) the association list, (2)
-  ;; the number of elements in the association list, an (3), an error
-  ;; message if the pattern (mapping symbols to arguments) does not
-  ;; match. If (3) is not `#F` then (1) and (2) must be `#F`. If (1)
-  ;; and (2) are not `#F` then (3) must be `#F`.
-  (define (bind-rest args count stack)
-    (cond
-     (rest
-      (values
-       (cons (cons rest args) stack)
-       (+ 1 count)
-       #f))
-     ((null? args) (values stack count #f))
-     (else
-      (values #f #f
-       (make<elisp-eval-error> "too many arguments" #f)))
-     ))
-  (define (bind-opts opts args count stack)
-    (cond
-     ((pair? opts)
-      (cond
-       ((pair? args)
-        (bind-opts
-         (cdr opts) (cdr args) (+ 1 count)
-         (cons (cons (car opts) (car args)) stack))
-        )
-       (else
-        (bind-opts
-         (cdr opts) '() (+ 1 count)
-         (cons (cons (car opts) '()) stack)
-         ))
-       ))
-     (else (bind-rest args count stack))
-     ))
-  (define (bind-syms syms args count stack)
-    (cond
-     ((pair? syms)
-      (cond
-       ((pair? args)
-        (bind-syms
-         (cdr syms) (cdr args) (+ 1 count)
-         (cons (cons (car syms) (car args)) stack))
-        )
-       (else
-        (values #f #f
-         (make<elisp-eval-error> "not enough arguments" #f))
-        )))
-     (else (bind-opts opts args count stack))
-     ))
-  (bind-syms syms args 0 '())
-  )
-
 
 (define (elstkfrm-from-args func args)
   ;; Construct a stack frame by binding arguments values to the
   ;; argument symbol names in the givem `FUNC`, which must be a
   ;; `<LAMBDA-TYPE>`. The values are bound in the lexical (not
   ;; dynamic) scope.
-  (let-values
-      (((assocs count failed)
-        (elstkfrm-zip-args
-         (lambda-args func)
-         (lambda-optargs func)
-         (lambda-rest func)
-         args)
-        ))
-    (cond
-     (failed
-      (lens-set (list func args) failed =>elisp-eval-error-irritants)
-      failed
-      )
-     (else (assocs->elstkfrm count assocs)))
+  (let ((syms (lambda-args func))
+        (opts (lambda-optargs func))
+        (rest (lambda-rest func)))
+    (define (bind-rest args count stack)
+      (cond
+       (rest
+        (assocs->elstkfrm
+         (+ 1 count)
+         (cons (cons rest args) stack)))
+       ((null? args) (assocs->elstkfrm count stack))
+       (else (eval-error "too many arguments" func args))
+       ))
+    (define (bind-opts opts args count stack)
+      (cond
+       ((pair? opts)
+        (cond
+         ((pair? args)
+          (bind-opts
+           (cdr opts) (cdr args) (+ 1 count)
+           (cons (cons (car opts) (car args)) stack))
+          )
+         (else
+          (bind-opts
+           (cdr opts) '() (+ 1 count)
+           (cons (cons (car opts) '()) stack)
+           ))
+         ))
+       (else (bind-rest args count stack))
+       ))
+    (define (bind-syms syms args count stack)
+      (cond
+       ((pair? syms)
+        (cond
+         ((pair? args)
+          (bind-syms
+           (cdr syms) (cdr args) (+ 1 count)
+           (cons (cons (car syms) (car args)) stack))
+          )
+         (else (eval-error "not enough arguments" func args))
+         ))
+       (else (bind-opts opts args count stack))
+       ))
+    (bind-syms syms args 0 '())
     ))
 
 ;;--------------------------------------------------------------------
