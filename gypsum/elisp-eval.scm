@@ -161,7 +161,7 @@
               (eval-iterate-forms st filepath
                (lambda (form) (elisp-eval! form st))))
              )
-         (exec-run-hooks (list name) (list filepath))
+         (exec-run-hooks 'after-load-functions (list filepath))
          (setq-load-file-name nil)
          result
          )))
@@ -217,8 +217,10 @@
            (recurse (third (car hook)) second (cdr hook)))
           ((symbol? hook) (third hook))
           (else
-           (eval-error "wrong type argument" hook #:expecting "symbol or list")
-           )))
+           (eval-error
+            "wrong type argument" hook
+            #:expecting "symbol or list"
+            ))))
        (define (first hook-list)
          ;; First level of indirection. A hook must be a symbol that
          ;; resolves to a symbol or list of symbols.
@@ -1512,11 +1514,11 @@
 
      ,nil
      ,t
-     ,(new-symbol "load-path" nil)
+     ,(new-symbol "load-path" '())
      ,(new-symbol "load-file-name")
-     ,(new-symbol "noninteractive" t)
-     ,(new-symbol "after-load-functions" nil)
-     ,(new-symbol "features" nil)
+     ,(new-symbol "noninteractive" #t)
+     ,(new-symbol "after-load-functions" '())
+     ,(new-symbol "features" '())
 
      (lambda    . ,elisp-lambda)
      (apply    . ,elisp-apply)
