@@ -118,6 +118,11 @@
 
 (test-eqv 30 (test-elisp-eval! '(if (null t) 10 20 30)))
 
+(test-eq #f (test-elisp-eval! '(when nil 40)))
+(test-eq 50 (test-elisp-eval! '(when t 50)))
+(test-eq 60 (test-elisp-eval! '(unless nil 60)))
+(test-eq #f (test-elisp-eval! '(unless t 70)))
+
 (test-eqv 30
   (test-elisp-eval!
    '(cond (nil 10) (nil 20) (t 30) (t 40) (nil 50))))
@@ -202,6 +207,11 @@
         (list a '+ b '= (+ a b)))
       '(1 2)))))
 
+(test-equal '() (test-elisp-eval! '(apply (lambda () t nil) '())))
+(test-equal #t  (test-elisp-eval! '(apply (lambda () nil t) '())))
+(test-equal '() (test-elisp-eval! '(apply '(lambda () t nil) '())))
+(test-equal #t  (test-elisp-eval! '(apply '(lambda () nil t) '())))
+
 (test-equal '(2 + 3 = 5)
   (test-elisp-eval!
    '(progn
@@ -209,7 +219,6 @@
      (defun f (a b) (list a '+ b '= (+ a b)))
      (f 2 3)
      )))
-
 
 (test-equal '(13 + 21 = 34)
   (test-elisp-eval!
@@ -279,6 +288,46 @@
       (list a b c d)
       )))
 
+
+(test-assert
+  (test-elisp-eval!
+   '(progn
+      (defun test-optargs (&optional x y)
+        (cond
+         ((and (null x) (null y)) '(17 23))
+         ((null x) (list y y))
+         ((null y) (list x x))
+         (t (list (+ x y) (* x y)))
+         ))
+      t
+      )))
+
+(test-equal '(17 23)
+  (test-elisp-eval! '(test-optargs)))
+
+(test-equal '(29 29)
+  (test-elisp-eval! '(test-optargs 29)))
+
+(test-equal '(31 31)
+  (test-elisp-eval! '(test-optargs nil 31)))
+
+(test-equal '(12 35)
+  (test-elisp-eval! '(test-optargs 5 7)))
+
+
+(test-assert
+  (test-elisp-eval!
+   '(defun test-restargs (&optional x y &rest args)
+      (list (+ (if x x 0) (if y y 0)) (apply '+ args))
+      )))
+
+(test-equal '(0  0) (test-elisp-eval! '(test-restargs)))
+(test-equal '(3  0) (test-elisp-eval! '(test-restargs 3)))
+(test-equal '(8  0) (test-elisp-eval! '(test-restargs 3 5)))
+(test-equal '(8  8) (test-elisp-eval! '(test-restargs 3 5 8)))
+(test-equal '(8 21) (test-elisp-eval! '(test-restargs 3 5 8 13)))
+(test-equal '(8 42) (test-elisp-eval! '(test-restargs 3 5 8 13 21)))
+
 ;;--------------------------------------------------------------------------------------------------
 
 (define (test-elisp-eval-both-ports! expr)
@@ -290,7 +339,7 @@
               ((*elisp-output-port* out)
                (*elisp-error-port*  err)
                )
-            (let ((result (elisp-eval! expr test-elisp-env)))
+            (let ((result (test-elisp-eval! expr)))
               (list result (get-output-string out) (get-output-string err))
               )))))))
 
@@ -299,7 +348,7 @@
     (lambda (out)
       (parameterize
           ((*elisp-output-port* out))
-        (let ((result (elisp-eval! expr test-elisp-env)))
+        (let ((result (test-elisp-eval! expr)))
           (list result (get-output-string out))
           )))))
 
@@ -442,7 +491,7 @@ top: glo = top
 ;;--------------------------------------------------------------------------------------------------
 
 (test-equal '(1 1 2 2 2 1 1)
-  (elisp-eval! 
+  (test-elisp-eval! 
    '(progn
       (unintern 'abcd)
       (unintern 'bcde)
@@ -460,6 +509,104 @@ top: glo = top
                   (g (bcde)))
               (list a b c d e f g)
               )))))))
+
+;;--------------------------------------------------------------------------------------------------
+
+(test-assert
+  (test-elisp-eval!
+   '(progn
+      (defvar ramin-hook-test 0 "test hook functions")
+      (defun ramin-hook-success+1 (&optional n)
+        (unless n (setq n 1))
+        (setq ramin-hook-test (+ n ramin-hook-test))
+        t)
+      (defun ramin-hook-failure+1 (&optional n)
+        (unless n (setq n 1))
+        (setq ramin-hook-test (+ n ramin-hook-test))
+        nil)
+      (defvar ramin-hook-A 'ramin-hook-success+1)
+      (defvar ramin-hook-B 'ramin-hook-failure+1)
+      (defvar ramin-hook-ABA
+        '(ramin-hook-success+1 ramin-hook-failure+1 ramin-hook-success+1))
+      (defvar ramin-hook-BAB
+        '(ramin-hook-failure+1 ramin-hook-success+1 ramin-hook-failure+1))
+      t)
+   ))
+
+(test-eqv 1
+  (test-elisp-eval!
+   '(progn
+     (setq ramin-hook-test 0)
+     (run-hooks 'ramin-hook-A)
+     ramin-hook-test
+     )))
+
+(test-eqv 8
+  (test-elisp-eval!
+   '(progn
+      (setq ramin-hook-test 0)
+      (run-hooks 'ramin-hook-ABA 'ramin-hook-B 'ramin-hook-BAB 'ramin-hook-A)
+      ramin-hook-test
+      )))
+
+(test-eqv 0
+  ;; In order to make sure hooks are as confusing as possible, Emacs
+  ;; `RUN-HOOKS` requires a symbol that evaluates to a symbol that was
+  ;; defined with `DEFUN`, or a symbol to a list to a symbol defined
+  ;; with `DEFUN`. You cannot simply pass a symbol that was defined
+  ;; with `DEFUN`, nor can you pass a symbol to a symbol to a symbol
+  ;; to a `DEFUN`. The symbol dereferencing must use *exactly* 2
+  ;; levels of indirection, and the first level of indirection *must*
+  ;; resolve to either a symbol or a list of symbols.
+  (test-elisp-eval!
+   '(progn
+      (setq ramin-hook-test 0)
+      (run-hooks
+       ramin-hook-B
+       ramin-hook-A
+       'ramin-hook-success+1
+       'ramin-hook-failure+1
+       )
+      ramin-hook-test
+      )))
+
+(test-equal '(4 3)
+  (test-elisp-eval!
+   '(list
+     (progn
+       (setq ramin-hook-test 0)
+       (run-hook-with-args-until-failure 'ramin-hook-A)
+       (run-hook-with-args-until-failure 'ramin-hook-B)
+       (run-hook-with-args-until-failure 'ramin-hook-ABA)
+       ramin-hook-test
+       )
+     (progn
+       (setq ramin-hook-test 0)
+       (run-hook-with-args-until-failure 'ramin-hook-A)
+       (run-hook-with-args-until-failure 'ramin-hook-B)
+       (run-hook-with-args-until-failure 'ramin-hook-BAB)
+       ramin-hook-test
+       )
+    )))
+
+(test-equal '(3 4)
+  (test-elisp-eval!
+   '(list
+     (progn
+       (setq ramin-hook-test 0)
+       (run-hook-with-args-until-success 'ramin-hook-A)
+       (run-hook-with-args-until-success 'ramin-hook-B)
+       (run-hook-with-args-until-success 'ramin-hook-ABA)
+       ramin-hook-test
+      )
+     (progn
+       (setq ramin-hook-test 0)
+       (run-hook-with-args-until-success 'ramin-hook-A)
+       (run-hook-with-args-until-success 'ramin-hook-B)
+       (run-hook-with-args-until-success 'ramin-hook-BAB)
+       ramin-hook-test
+      )
+    )))
 
 ;;--------------------------------------------------------------------------------------------------
 

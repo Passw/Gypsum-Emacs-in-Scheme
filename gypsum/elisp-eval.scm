@@ -150,9 +150,128 @@
      (elisp-load! filepath (*the-environment*))
      )
     ((filepath st)
-     (eval-iterate-forms st filepath
-      (lambda (form) (elisp-eval! form st))))
+     (let ((name "load-file-name"))
+       (define (setq-load-file-name val)
+         (lens-set val st
+          (=>env-obarray-key! name)
+          (=>sym-value! name))
+         )
+       (setq-load-file-name filepath)
+       (let ((result
+              (eval-iterate-forms st filepath
+               (lambda (form) (elisp-eval! form st))))
+             )
+         (exec-run-hooks (list name) (list filepath))
+         (setq-load-file-name nil)
+         result
+         )))
     ))
+
+
+(define exec-run-hooks
+  (case-lambda
+    ((hook-list args-list)
+     (exec-run-hooks #f hook-list args-list)
+     )
+    ((until-val hook-list args-list)
+     (define (until-failure result loop hook-list)
+       (if (elisp-null? result) #f (loop hook-list))
+       )
+     (define (until-success result loop hook-list)
+       (if (elisp-null? result) (loop hook-list) #f)
+       )
+     (define (until-end result loop hook-list)
+       (loop hook-list)
+       )
+     (let ((st (*the-environment*))
+           (recurse
+            (cond
+             ((not until-val) until-end)
+             ((eq? until-val 'failure) until-failure)
+             ((eq? until-val 'success) until-success)
+             (else (error "loop control symbol" until-val))
+             ))
+           )
+       (define (third hook)
+         ;; Final level of indirection: `HOOK` must be a symbol
+         ;; object, must contain a callable function.
+         (let*((name (symbol->string hook))
+               (func (view st
+                      (=>env-symbol! name)
+                      (=>sym-function! name)
+                      ))
+               )
+           (cond
+            (hook
+             (eval-apply-lambda func args-list))
+            (else (eval-error "void variable" hook)))
+           ))
+       (define (second hook)
+         ;; Second level of indirection. A hook must be a symbol or a
+         ;; list of symbols, each symbol must resolve to a function
+         ;; that can be evaluated.
+         (cond
+          ((not   hook) #f)
+          ((null? hook) #f)
+          ((and (pair? hook) (symbol? (car hook)))
+           (recurse (third (car hook)) second (cdr hook)))
+          ((symbol? hook) (third hook))
+          (else
+           (eval-error "wrong type argument" hook #:expecting "symbol or list")
+           )))
+       (define (first hook-list)
+         ;; First level of indirection. A hook must be a symbol that
+         ;; resolves to a symbol or list of symbols.
+         (cond
+          ((pair? hook-list)
+           (let*((hook-name (car hook-list))
+                 (hook-list (cdr hook-list))
+                 )
+             (cond
+              ((symbol? hook-name)
+               (let*((name (symbol->string hook-name))
+                     (hook
+                      (view st
+                       (=>env-symbol! name)
+                       (=>sym-value! name)))
+                     (result (second hook))
+                     )
+                 (recurse result first hook-list)
+                 ))
+              (else
+               (eval-error "wrong type argument" hook-name #:expecting "symbol")
+               ))
+             ))
+          (else #f)
+          ))
+       (cond
+        ((null? hook-list) #f)
+        ((pair? hook-list) (first hook-list))
+        ((symbol? hook-list) (first (list hook-list)))
+        (else
+         (eval-error "wrong type argument" hook-list
+          #:expecting "symbol or symbol list"))
+        )))
+    ))
+
+
+(define (elisp-run-hooks . args) (exec-run-hooks args '()))
+
+(define (elisp-hook-runner name control)
+  (lambda args
+    (match args
+      (() (eval-error "wrong number of arguments" name 0 #:min 1))
+      ((hook args ...) (exec-run-hooks control (list hook) args))
+      ))
+  )
+
+(define elisp-run-hooks-with-args (elisp-hook-runner "run-hooks-with-args" #f))
+
+(define elisp-run-hook-with-args-until-failure
+  (elisp-hook-runner "run-hook-with-args-until-failure" 'failure))
+
+(define elisp-run-hook-with-args-until-success
+  (elisp-hook-runner "run-hook-with-args-until-success" 'success))
 
 ;;====================================================================
 ;; The interpreting evaluator. Matches patterns on the program and
@@ -187,15 +306,19 @@
   ;; expansion regardless of the `LAMBDA-KIND` of the `FUNC` argument.
   (eval-apply-proc
    (lambda args
-     (let*((elstkfrm (elstkfrm-from-args func args))
-           (st (*the-environment*))
-           (old-stack (view st =>env-lexstack*!))
-           (st (lens-set (list elstkfrm) st =>env-lexstack*!))
-           (return (eval-progn-body (view func =>lambda-body*!))) ;; apply
-           )
-       (lens-set old-stack st =>env-lexstack*!)
-       return
-       ))
+     (let ((elstkfrm (elstkfrm-from-args func args)))
+       (cond
+        ((not elstkfrm) (error "elstkfrm-from-args returned #f"))
+        ((elisp-eval-error-type? elstkfrm) (eval-raise elstkfrm))
+        (else
+         (let*((st (*the-environment*))
+               (old-stack (view st =>env-lexstack*!))
+               (st (lens-set (list elstkfrm) st =>env-lexstack*!))
+               (return (eval-progn-body (view func =>lambda-body*!))) ;; apply
+               )
+           (lens-set old-stack st =>env-lexstack*!)
+           return
+           )))))
    args))
 
 
@@ -240,6 +363,15 @@
      ((procedure?    func)
       (env-trace! st (cons head func)
        (lambda () (eval-apply-proc func arg-exprs))))
+     ((pair?         func)
+      (match func
+        (('lambda (args-exprs ...) body ...)
+         (let ((func (apply (syntax-eval elisp-lambda) func)))
+           (env-trace! st (cons head func)
+            (lambda () (eval-apply-lambda func arg-exprs))
+            )))
+        (any (eval-error "invalid function" func))
+        ))
      (else (eval-error "invalid function" head))
      )
     ))
@@ -281,6 +413,7 @@
       (() '())
       ((final) (eval-form final))
       ((head more ...) (eval-form head) (loop more))
+      (exprs (error "no function body" exprs))
       )))
 
 ;;--------------------------------------------------------------------
@@ -353,6 +486,26 @@
               (eval-form then-exprs)
               (eval-progn-body else-exprs)
               )))))))
+
+
+(define elisp-when-unless
+  (make<syntax>
+   (lambda exprs
+     (define (is   cond) (not (elisp-null? cond)))
+     (define (isnt cond) (elisp-null? cond))
+     (define (eval on-bool cond-expr body-expr)
+       (let ((result (eval-form cond-expr)))
+         (if (not (on-bool result)) #f
+             (eval-progn-body body-expr))
+         ))
+     (match exprs
+       (() (eval-error "wrong number of arguments" "when or unless" #:min 1))
+       (('when   cond-expr body-expr ...)
+        (eval is   cond-expr body-expr))
+       (('unless cond-expr body-expr ...)
+        (eval isnt cond-expr body-expr))
+       (any (eval-error "wrong number of arguments" (car any) #:min 1))
+       ))))
 
 
 (define elisp-cond
@@ -1359,7 +1512,11 @@
 
      ,nil
      ,t
-     ,(new-symbol "noninteractive" #t)
+     ,(new-symbol "load-path" nil)
+     ,(new-symbol "load-file-name")
+     ,(new-symbol "noninteractive" t)
+     ,(new-symbol "after-load-functions" nil)
+     ,(new-symbol "features" nil)
 
      (lambda    . ,elisp-lambda)
      (apply    . ,elisp-apply)
@@ -1379,6 +1536,8 @@
 
      (cond     . ,elisp-cond)
      (if       . ,elisp-if)
+     (when     . ,elisp-when-unless)
+     (unless   . ,elisp-when-unless)
      (or       . ,elisp-or)
      (and      . ,elisp-and)
      (while    . ,elisp-while)
@@ -1446,6 +1605,11 @@
      (make-keymap        . ,elisp-make-keymap)
      (make-sparse-keymap . ,elisp-make-keymap)
      (define-key         . ,elisp-define-key)
+
+     (run-hooks                        . ,elisp-run-hooks)
+     (run-hooks-with-args              . ,elisp-run-hooks-with-args)
+     (run-hook-with-args-until-failure . ,elisp-run-hook-with-args-until-failure)
+     (run-hook-with-args-until-success . ,elisp-run-hook-with-args-until-success)
 
      ;; ------- end of assocaition list -------
      )))
