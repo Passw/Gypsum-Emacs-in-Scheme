@@ -610,4 +610,14 @@ top: glo = top
 
 ;;--------------------------------------------------------------------------------------------------
 
+(test-assert (not (test-elisp-eval! '(featurep 'feature-A))))
+(test-assert (test-elisp-eval! '(progn (provide 'feature-A 'subfeature-B 'subfeature-C) t)))
+(test-assert (test-elisp-eval! '(featurep 'feature-A)))
+(test-assert (not (test-elisp-eval! '(featurep 'feature-A 'wrong-subfeature))))
+(test-assert (test-elisp-eval! '(featurep 'feature-A 'subfeature-B)))
+(test-assert (test-elisp-eval! '(featurep 'feature-A 'subfeature-C)))
+(test-eq 'feature-A (test-elisp-eval! '(require 'feature-A)))
+
+;;--------------------------------------------------------------------------------------------------
+
 (test-end "gypsum_elisp_eval_tests")

@@ -168,6 +168,140 @@
     ))
 
 
+(define subfeature-key "subfeature")
+
+(define (elisp-provide . args)
+  (match args
+    (() (eval-error "wrong number of arguments" 0 #:min 1))
+    ((feature subfeatures ...)
+     (let ()
+       (define (check-features features)
+         (cond
+          ((pair? features)
+           (let ((feature (car features)))
+             (cond
+              ((symbol? feature) (check-features (cdr features)))
+              (else (eval-error "wrong type argument" feature #:expecting "symbol"))
+              )))
+          ((null? features) #t)
+          ((symbol? features) #t)
+          (else (eval-error "wrong type argument" features #:expecting "list of symbols"))
+          ))
+       (check-features (cons feature subfeatures))
+       (let ((name (symbol->string feature)))
+         (update
+          (lambda (obj)
+            (let ((obj (if obj obj (new-symbol name))))
+              (when (pair? subfeatures)
+                (let ((subfeatures (map symbol->string subfeatures)))
+                  (update
+                   (lambda (subs)
+                     (cond
+                      ((or (not subs) (null? subs)) subfeatures)
+                      (else (append subfeatures subs)
+                            ;; ^ TODO: should be set union, not append
+                            )))
+                   obj
+                   (=>sym-plist! name)
+                   (=>hash-key! subfeature-key)
+                   ;; ^ TODO: Canonical lens constructs a hash table, set
+                   ;; the number of bins to a smaller number here.
+                   )))
+              obj
+              ))
+          (*the-environment*)
+          (=>env-obarray-key! name))
+         #f
+         )))
+    ))
+
+(define eval-featurep
+  (case-lambda
+    ((sym) (eval-featurep sym #f))
+    ((sym sub)
+     (let*((name (symbol->string sym))
+           (subname (if sub (symbol->string sub) #f))
+           (st (*the-environment*))
+           (obj (view st (=>env-obarray-key! name)))
+           )
+       (and obj
+         (or (not sub)
+           (let ((subf-list
+                  (view obj
+                   (=>sym-plist! name)
+                   (=>hash-key! subfeature-key)
+                   )))
+             (and subf-list
+               (not
+                 (null?
+                  (view subf-list
+                   (=>find (lambda (a) (equal? a subname))))))
+               )))
+         #t)
+       ))))
+
+(define (elisp-featurep . args)
+  (match args
+    ((sym) (eval-featurep sym))
+    ((sym sub) (eval-featurep sym sub))
+    (any (eval-error "wrong number of arguments" (length any) #:min 1 #:max 2))
+    ))
+
+(define eval-locate-file-internal
+  (case-lambda
+    ((filename path)
+     (eval-locate-file-internal filename path '()))
+    ((filename path suffixes)
+     (eval-locate-file-internal filename path suffixes #f))
+    ((filename path suffixes predicate)
+     ;; TODO: make this work the same way it does in GNU Emacs. This
+     ;; current implementation is just temporary.
+     (string-append "./elisp/lisp/emacs-lisp/" filename ".el")
+     )))
+
+(define eval-require
+  (case-lambda
+    ((sym) (eval-require sym #f #f))
+    ((sym filename) (eval-require sym filename #f))
+    ((sym filename noerror)
+     (cond
+      ((not (symbol? sym))
+       (eval-error "wrong type argument" sym #:expecting "symbol")
+       )
+      ((and filename (not (string? filename)))
+       (eval-error "wrong type argument" filename #:expecting "string")
+       )
+      (else
+       (cond
+        ((eval-featurep sym) sym)
+        (else
+         (let ((filename (if filename filename (symbol->string sym))))
+           (cond
+            ((not (eval-featurep sym))
+             (let ((fullpath (eval-locate-file-internal filename "")))
+               (cond
+                ((elisp-eval-error-type? fullpath)
+                 (if noerror #f (eval-raise fullpath)))
+                ((string? fullpath) (elisp-load! fullpath) sym)
+                ((not noerror)
+                 (eval-error
+                  "cannot open load file"
+                  "no such file or directory"
+                  filename))
+                (else #f)
+                )))
+            (else #f)
+            )))))))))
+
+(define (elisp-require . args)
+  (match args
+    ((sym) (eval-require sym))
+    ((sym filename) (eval-require sym filename))
+    ((sym filename noerror) (eval-require sym filename noerror))
+    (any (eval-error "wrong number of arguments" (length any) #:min 1 #:max 3))
+    ))
+
+
 (define exec-run-hooks
   (case-lambda
     ((hook-list args-list)
@@ -1514,7 +1648,9 @@
 
      ,nil
      ,t
-     ,(new-symbol "load-path" '())
+     ,(new-symbol "load-path" '("./elisp/lisp" "./elisp/lisp/emacs-lisp"))
+     ,(new-symbol "load-suffixes" '(".el"))
+     ,(new-symbol "load-file-rep-suffixes" '("" ".gz"))
      ,(new-symbol "load-file-name")
      ,(new-symbol "noninteractive" #t)
      ,(new-symbol "after-load-functions" '())
@@ -1602,6 +1738,9 @@
      (print            . ,elisp-print)
 
      (load             . ,elisp-load)
+     (provide          . ,elisp-provide)
+     (featurep         . ,elisp-featurep)
+     (require          . ,elisp-require)
 
      (sxhash-equal       . ,elisp-sxhash-equal)
      (make-keymap        . ,elisp-make-keymap)
