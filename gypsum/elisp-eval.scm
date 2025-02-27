@@ -1284,7 +1284,7 @@
      (match args
        (('function arg)
         (let ((is-lambda? (lambda (o) (and (pair? o) (symbol? (car o)) (eq? 'lambda (car o)))))
-              (make-lambda (lambda (o) (apply (macro-procedure elisp-lambda) o)))
+              (make-lambda (lambda (o) (apply (syntax-eval elisp-lambda) o)))
               )
           (cond
            ((symbol? arg)
