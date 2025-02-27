@@ -25,7 +25,7 @@
           *default-hash-table-constructor*
           default-unit-lens-updater  default-unit-lens-setter
           =>canonical  =>view-only-lens  =>encapsulate
-          =>hash-key!  =>hash-key*!
+          =>hash-key!  =>hash-key*!  =>find
           )
     (only (gypsum lens vector) mutable-vector-type?)
     (only (gypsum cursor)
