@@ -328,6 +328,14 @@
 (test-equal '(8 21) (test-elisp-eval! '(test-restargs 3 5 8 13)))
 (test-equal '(8 42) (test-elisp-eval! '(test-restargs 3 5 8 13 21)))
 
+
+(test-equal '(0 . 1)
+  (test-elisp-eval!
+   '(let ((pair (cons nil nil)))
+      (setcar pair 0)
+      (setcdr pair 1)
+      pair)))
+
 ;;--------------------------------------------------------------------------------------------------
 
 (define (test-elisp-eval-both-ports! expr)

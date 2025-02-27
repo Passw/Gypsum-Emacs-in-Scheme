@@ -41,7 +41,7 @@
           elisp-quote-scheme
           elisp-unquote-scheme
           scheme->elisp  elisp->scheme  elisp-null?
-          pure  pure*  pure*-typed  pure*-numbers
+          pure  pure*  pure*-typed  pure*-numbers  pure-raw
           new-empty-environment   elisp-environment-type?  env-alist-defines!
           env-push-new-elstkfrm!   env-pop-elstkfrm!  env-trace!
           env-resolve-function   env-intern!   env-setq-bind!

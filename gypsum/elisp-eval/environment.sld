@@ -53,7 +53,7 @@
 
    ;; Converting data between Scheme and Elisp
    scheme->elisp  elisp->scheme  elisp-null?
-   pure  pure*  pure*-typed  pure*-numbers
+   pure  pure*  pure*-typed  pure*-numbers  pure-raw
 
    ;; Emacs Lisp constant symbols
    nil t

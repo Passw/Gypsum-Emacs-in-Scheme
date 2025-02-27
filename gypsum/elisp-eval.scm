@@ -1356,6 +1356,22 @@
 (define elisp-symbol-name
   (elisp-symbol-op "symbol-name" any-symbol? eval-symbol-name))
 
+(define (elisp-bare-symbol . args)
+  (match args
+    ((sym)
+     (cond
+      ((sym-type? sym) sym)
+      ((symbol? sym)
+       (view (*the-environment*) (=>env-symbol! (symbol->string sym)))
+       )
+      (else (eval-error "wrong type argument" sym #:expecting "symbol"))
+      ))
+    (any
+     (eval-error
+      "wrong number of arguments" "bare-symbol"
+      (length any) #:expecting 1))
+    ))
+
 (define elisp-boundp
   (elisp-symbol-op "unboundp" any-symbol? eval-boundp))
 
@@ -1697,11 +1713,13 @@
      (>  . ,(pure*-numbers ">" >))
      (>= . ,(pure*-numbers ">=" >=))
 
-     (cons  . ,(pure 2 'cons cons))
-     (car   . ,(pure 1 'car car))
-     (cdr   . ,(pure 1 'cdr cdr))
-     (list  . ,elisp-list)
-     (null  . ,(pure 1 "null" elisp-null?))
+     (cons   . ,(pure 2 'cons cons))
+     (car    . ,(pure 1 'car car))
+     (cdr    . ,(pure 1 'cdr cdr))
+     (list   . ,elisp-list)
+     (null   . ,(pure 1 "null" elisp-null?))
+     (setcar . ,(pure-raw 2 "setcar" (lambda args (apply set-car! args) #f)))
+     (setcdr . ,(pure-raw 2 "setcdr" (lambda args (apply set-cdr! args) #f)))
 
      (quote     . ,elisp-quote)
      (backquote . ,elisp-backquote)
@@ -1713,6 +1731,7 @@
 
      (make-symbol      . ,elisp-make-symbol)
      (symbol-name      . ,elisp-symbol-name)
+     (bare-symbol      . ,elisp-bare-symbol)
      (boundp           . ,elisp-boundp)
      (makunbound       . ,elisp-makunbound)
      (intern           . ,elisp-intern)

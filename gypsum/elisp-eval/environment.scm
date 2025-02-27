@@ -844,10 +844,19 @@
   ;; Like `PURE*`, but construct a procedure that takes exactly N+1
   ;; arguments and applies them all (except the first argument, which
   ;; is a reference to the environment) to `PROC`.
+  ;;------------------------------------------------------------------
+  (pure-raw n sym
+   (lambda args (scheme->elisp (apply proc (map scheme->elisp args))))))
+
+(define (pure-raw n sym proc)
+  ;; Like `PURE`, but does not convert the Elisp values passed as
+  ;; arguments to Scheme values, you get the raw Elisp values. The
+  ;; return values are not converted either.
+  ;;------------------------------------------------------------------
   (lambda args
     (let ((count (length args)))
       (cond
        ((> count n) (eval-error "not enough arguments" sym n args))
        ((< count n) (eval-error "too many arguments" sym n args))
-       (else (scheme->elisp (apply proc (map scheme->elisp args))))
+       (else (apply proc args))
        ))))
