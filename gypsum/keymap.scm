@@ -3,7 +3,7 @@
 
 ;; =================================================================================================
 
-(define *unicode-max-code-point* (integer->char #x10FFFF))
+(define *unicode-max-code-point* (integer->char #x10FFFF)) ;; TODO: move these to (gypsum lexer)
 (define *unicode-min-code-point* #\null)
 
 (define (*->expr thing)
