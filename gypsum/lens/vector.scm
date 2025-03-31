@@ -22,6 +22,12 @@
    (mutable-vector-min-index mvec)
    (mutable-vector-max-index mvec)))
 
+(define (mutable-vector->vector mvec)
+  (vector-copy
+   (mutable-vector mvec)
+   (mutable-vector-min-index mvec)
+   (mutable-vector-max-index mvec)))
+
 (define (mutable-vector-empty? vec)
   (or
    (not vec)

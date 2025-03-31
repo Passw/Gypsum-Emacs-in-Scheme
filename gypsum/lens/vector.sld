@@ -17,7 +17,8 @@
     )
   (export
    make<mutable-vector>
-   mutable-vector-type? new-mutable-vector mutable-vector-copy
+   mutable-vector-type? new-mutable-vector
+   mutable-vector-copy mutable-vector->vector
    mutable-vector-empty? mutable-vector-length
    mutable-vector-store-size
    =>mutable-vector!
