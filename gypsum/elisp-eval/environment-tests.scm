@@ -14,7 +14,6 @@
         new-mutable-vector
         mutable-vector-length
         mutable-vector-append!)
-  (only (gypsum elisp-eval parser) read-elisp)
   (prefix (gypsum editor-impl) *impl/)
   )
 (cond-expand

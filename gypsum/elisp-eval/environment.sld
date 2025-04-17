@@ -49,7 +49,11 @@
 
   (export
    ;; Quoting Scheme literals
-   elisp-quote-scheme-type?  elisp-quote-scheme  elisp-unquote-scheme
+   elisp-quote-scheme-type?  elisp-quote-scheme
+   elisp-unquote-scheme  elisp-quote-scheme-equal?
+   elisp-unquoted-form  elisp-unquoted-form-type?
+   elisp-unquoted-get-form  elisp-unquoted-form-equal?
+   elisp-spliced-form?  elisp-backquoted-form?
 
    ;; Converting data between Scheme and Elisp
    scheme->elisp  elisp->scheme  elisp-null?
@@ -90,28 +94,38 @@
    =>sym-value*!  =>sym-function*!  =>sym-plist*!
    =>sym-name  =>sym-value!  =>sym-function!  =>sym-plist!
    ensure-string  symbol/string?  any-symbol?
+   sym-name-equal?
 
    ;; Function objects
    lambda-type?  new-lambda  lambda-copy-into!
-   =>lambda-kind!  =>lambda-args!  =>lambda-optargs!  =>lambda-rest!
-   =>lambda-docstring!  =>lambda-declares!  =>lambda-lexenv!  =>lambda-body!
+   =>lambda-kind!  =>lambda-args!
+   =>lambda-optargs!  =>lambda-rest!
+   =>lambda-docstring!  =>lambda-declares!
+   =>lambda-lexenv!  =>lambda-body!
    =>lambda-declares*!  =>lambda-interactive*!
-   =>lambda-body*!  =>lambda-kind*!  =>lambda-docstring*!
+   =>lambda-body*!  =>lambda-kind*!
+   =>lambda-docstring*!
 
    ;; Macro objects
-   make<macro>  macro-type?  macro-procedure  elisp-void-macro
+   make<macro>  macro-type?
+   macro-procedure  elisp-void-macro
    make<syntax> syntax-type? syntax-eval
 
    ;; Error objects
    raise-error-impl*  eval-raise  eval-error
-   elisp-eval-error-type?  =>elisp-eval-error-message  =>elisp-eval-error-irritants
+   elisp-eval-error-type?
+   =>elisp-eval-error-message
+   =>elisp-eval-error-irritants
    print-trace  print-stack-frames
 
    ;; Stack frames
-   new-elstkfrm  stack-lookup
-   =>elstkfrm-lexstack-key*!  =>elstkfrm-dynstack-key*!  =>elstkfrm*!
-   =>elstkfrm-lexstack*!   =>elstkfrm-dynstack*!
-   elstkfrm-from-args  elstkfrm-sym-intern!
+   new-elstkfrm  stack-lookup =>elstkfrm*!
+   =>elstkfrm-lexstack-key*!
+   =>elstkfrm-dynstack-key*!
+   =>elstkfrm-lexstack*!
+   =>elstkfrm-dynstack*!
+   elstkfrm-from-args
+   elstkfrm-sym-intern!
    )
 
   (include "environment.scm")

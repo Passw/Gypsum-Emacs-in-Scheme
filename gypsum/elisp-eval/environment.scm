@@ -8,13 +8,66 @@
   ;; vectors, and list constants from being evaluated as lists in the
   ;; Elisp environment. Being wrapped in this data type indicates to
   ;; the Elisp interpreter/compiler that the value should be used
-  ;; as-is.
+  ;; as-is. It also is produced by the Elisp parser in the AST as the
+  ;; `(QUOTE ...)` syntax and the quasiquote syntax.
   ;;------------------------------------------------------------------
-  (elisp-quote-scheme scheme-value)
+  (elisp-quote-scheme  scheme-value  is-backquote)
   elisp-quote-scheme-type?
   (scheme-value  elisp-unquote-scheme)
+  (is-backquote  elisp-backquoted-form?)
   )
 
+(define elisp-quote-scheme-equal?
+  (case-lambda
+    ((a b)
+     ((elisp-quote-scheme-equal? equal?) a b)
+     )
+    ((equal?)
+     (lambda (a b)
+       (and
+        (elisp-quote-scheme-type? a)
+        (elisp-quote-scheme-type? b)
+        (eq? (elisp-backquoted-form? a)
+             (elisp-backquoted-form? b)
+             )
+        (equal?
+         (elisp-unquote-scheme a)
+         (elisp-unquote-scheme b)
+         ))))))
+
+;;--------------------------------------------------------------------
+
+(define-record-type <elisp-unquoted-form-type>
+  ;; This is the counterpart to the `ELISP-QUOTE-SCHEME-TYPE?`
+  ;; structure, it wraps a value that should be interpreted by the
+  ;; Elisp interpreter as an exception to the rule that forms within
+  ;; the `ELISP-QUOTE-SCHEME-TYPE?` should not be interpreted. It is
+  ;; also produced by the Elisp parser in the AST as the unquote form
+  ;; syntax.
+  ;;------------------------------------------------------------------
+  (elisp-unquoted-form form splice?)
+  elisp-unquoted-form-type?
+  (form     elisp-unquoted-get-form)
+  (splice?  elisp-spliced-form?)
+  )
+
+(define elisp-unquoted-form-equal?
+  (case-lambda
+    ((a b)
+     ((elisp-unquoted-form-equal? equal?) a b)
+     )
+    ((equal?)
+     (lambda (a b)
+       (and
+        (elisp-unquoted-form-type? a)
+        (elisp-unquoted-form-type? b)
+        (eq? (elisp-spliced-form? a)
+             (elisp-spliced-form? b)
+             )
+        (equal?
+         (elisp-unquoted-get-form a)
+         (elisp-unquoted-get-form b)
+         ))))))
 
 ;;--------------------------------------------------------------------
 ;; Symbol objects
@@ -46,6 +99,13 @@
      sym-name setter
      (default-unit-lens-updater sym-name setter)
      '=>sym-name)))
+
+(define (sym-name-equal? a b)
+  (and
+   (sym-type? a)
+   (sym-type? b)
+   (string=? (sym-name a) (sym-name b))
+   ))
 
 (define =>sym-value*! (record-unit-lens sym-value set!sym-value '=>sym-value*!))
 (define =>sym-function*! (record-unit-lens sym-function set!sym-function '=>sym-function*!))
@@ -758,31 +818,35 @@
 (define (elisp-null? val) (or (null? val) (not val)))
 
 (define (scheme->elisp val)
-  (define (replace val)
+  (define (replace-elem elem)
     (cond
-     ((pair? val)
-      (let ((head (car val)) (tail (cdr val)))
-        (cond
-         ((eq? head 'unquote)    (cons '|,| tail))
-         ((eq? head 'quasiquote) (cons '|`| tail))
-         (else val))))
-     (else val)
+     ((pair? elem) (scheme->elisp elem))
+     (else elem)
      ))
-  (let loop ((val (replace val)))
+  (define (replace-head head)
     (cond
-     ((not   val) '())
-     ((pair? val)
-      (let ((head (car val)) (tail (cdr val)))
-        (cons
-         (if (pair? head) (scheme->elisp head) (loop head))
-         (loop tail))))
-     ((char? val) (char->integer val))
-     (else val)
-     )))
+     ((symbol? head)
+      (case head
+        ((unquote) '|,|)
+        ((quasiquote) '|`|)
+        ((unquote-splicing) '|,@|)
+        (else head)
+        ))
+     (else (replace-elem head))
+     ))
+  (cond
+   ((not   val) '())
+   ((pair? val)
+    (cons
+     (replace-head (car val))
+     (map replace-elem (cdr val))
+     ))
+   (else val)
+   ))
 
 
 (define (elisp->scheme val)
-  (define (replace val)
+  (define (replace-elem elem)
     (cond
      ((pair? val)
       (let ((head (car val)) (tail (cdr val)))
@@ -793,13 +857,24 @@
          )))
      (else val)
      ))
-  (let loop ((val (replace val)))
+  (define (replace-head head)
+    (cond
+     ((symbol? head)
+      (case head
+        ((|`|)  'quasiquote)
+        ((|,|)  'unquote)
+        ((|,@|) 'unquote-splicing)
+        (else head)
+        ))
+     (else (replace-elem head))
+     ))
+  (let loop ((val val))
     (cond
      ((pair? val)
-      (let ((head (car val)) (tail (cdr val)))
-        (cons
-         (if (pair? val) (elisp->scheme head) (loop head))
-         (elisp->scheme tail))))
+      (cons
+       (replace-head (car val))
+       (map replace-elem (cdr val))
+       ))
      (else val)
      )))
 
