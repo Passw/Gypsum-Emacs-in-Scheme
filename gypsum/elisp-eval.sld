@@ -35,11 +35,19 @@
           )
     (only (chibi match) match)
     (prefix (gypsum editor-impl) *impl/)
-    (only (gypsum elisp-eval parser) read-elisp)
+    (only (gypsum elisp-eval parser)
+          elisp-read  select-elisp-dialect!
+          parse-state  =>parse-state-filepath*!
+          elisp-form->list
+          write-elisp-form ;;DEBUG
+          elisp-parse-state-type?
+          elisp-form-type?  elisp-function-ref-type?
+          elisp-form-start-loc  elisp-function-get-ref
+          )
     (only (gypsum elisp-eval environment)
-          elisp-quote-scheme-type?
-          elisp-quote-scheme
-          elisp-unquote-scheme
+          elisp-quote-scheme-type?  elisp-backquoted-form?
+          elisp-quote-scheme  elisp-unquote-scheme
+          elisp-unquoted-form-type?  elisp-unquoted-get-form  elisp-spliced-form?
           scheme->elisp  elisp->scheme  elisp-null?
           pure  pure*  pure*-typed  pure*-numbers  pure-raw
           new-empty-environment   elisp-environment-type?  env-alist-defines!

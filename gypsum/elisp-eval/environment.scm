@@ -328,6 +328,15 @@
    set!elisp-eval-irritants
    '=>elisp-eval-error-irritants))
 
+(define (elisp-eval-error-equal? a b)
+  (and
+   (equal?
+    (view a =>elisp-eval-error-message)
+    (view b =>elisp-eval-error-message))
+   (equal?
+    (view a =>elisp-eval-error-irritants)
+    (view b =>elisp-eval-error-irritants)
+    )))
 
 (define default-raise-error-impl raise)
 
@@ -850,9 +859,10 @@
     (cond
      ((pair? val)
       (let ((head (car val)) (tail (cdr val)))
-        (cond
-         ((eq? head '|`|) (cons 'quasiquote tail))
-         ((eq? head '|,|) (cons 'unquote    tail))
+        (case head
+         ((|`|)  (cons 'quasiquote tail))
+         ((|,|)  (cons 'unquote    tail))
+         ((|,@|) (cons 'unquote-splicing tail))
          (else val)
          )))
      (else val)

@@ -113,7 +113,9 @@
 
    ;; Error objects
    raise-error-impl*  eval-raise  eval-error
+   make<elisp-eval-error>
    elisp-eval-error-type?
+   elisp-eval-error-equal?
    =>elisp-eval-error-message
    =>elisp-eval-error-irritants
    print-trace  print-stack-frames
