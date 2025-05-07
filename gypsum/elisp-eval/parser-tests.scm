@@ -4,17 +4,6 @@
   (only (gypsum lens vector) mutable-vector-for-each)
   (only (srfi 64) test-begin test-end test-assert test-equal)
   (only (gypsum lexer) lexer-state lex-all)
-  (only (gypsum elisp-eval environment)
-        elisp-quote-scheme
-        elisp-unquoted-form
-        elisp-quote-scheme-equal?
-        elisp-quote-scheme-type?
-        elisp-backquoted-form?
-        elisp-unquote-scheme
-        elisp-unquoted-form-type?
-        elisp-spliced-form?
-        elisp-unquoted-get-form
-        )
   (gypsum elisp-eval parser)
   )
 
@@ -303,5 +292,27 @@
     (not
      (select-elisp-dialect! (parse-state ";lexical-binding:t-*-"))
      ))
+
+;;--------------------------------------------------------------------------------------------------
+;; Source location reporting testing
+
+(define (test-location-reporting expecting run)
+  (string=?
+   expecting
+   (call-with-port (open-output-string)
+     (lambda (port) (run port) (get-output-string port)))))
+
+(test-assert
+    (let*((in-port (open-input-string "(hello)"))
+          (st (parse-state in-port))
+          (form (elisp-read st))
+          )
+      (close-port in-port)
+      (and
+       (test-location-reporting
+        "1:2" (lambda (port) (write-parser-location form port)))
+       (test-location-reporting
+        "1:8" (lambda (port) (write-parser-location st port)))
+       )))
 
 (test-end "gypsum_elisp-eval_parser")

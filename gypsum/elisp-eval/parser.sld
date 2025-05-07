@@ -40,18 +40,6 @@
           *unicode-max-code-point*
           =>lexer-filepath*!
           )
-    (only (gypsum elisp-eval environment)
-          elisp-unquoted-form-equal?
-          elisp-quote-scheme
-          elisp-unquoted-form
-          elisp-quote-scheme-equal?
-          elisp-quote-scheme-type?
-          elisp-backquoted-form?
-          elisp-unquote-scheme
-          elisp-unquoted-form-type?
-          elisp-spliced-form?
-          elisp-unquoted-get-form
-          )
     )
   ;; -------- Hash Tables --------
   (cond-expand
@@ -101,6 +89,12 @@
    select-elisp-dialect! ;; check for "-*-lexical-binding:t-*-" magic comment 
 
    ;;----------------
+   ;; Selecting individual tokens
+   lexer-state ;; re-export gypsum lexer state constructor
+   run-elisp-tokenizer ;; lex the next token from a port
+   whitespace?
+
+   ;;----------------
    ;; Reporting
    write-parser-location ;; write the parser location to port
    write-location-form-newline ;; write a form's location, the form, and a newline
@@ -114,6 +108,8 @@
    elisp-function-get-ref
    elisp-function-ref-loc
 
+   ;;----------------------------------------
+   ;; Forms
    elisp-form-type?
    elisp-form ;; construct an Elisp form
    elisp-form-tokens
@@ -128,10 +124,12 @@
    elisp-form-length ;; return number of elements in a Elisp form
    write-elisp-form ;; write an Elisp form to a port
 
-   ;;----------------
-   ;; Selecting individual tokens
-   lexer-state ;; re-export gypsum lexer state constructor
-   run-elisp-tokenizer ;; lex the next token from a port
-   whitespace?
+   ;;----------------------------------------
+   ;; Quoting, quasiquoting, and unquoting
+   elisp-quote-scheme-type?  elisp-quote-scheme
+   elisp-unquote-scheme  elisp-quote-scheme-equal?
+   elisp-unquoted-form  elisp-unquoted-form-type?
+   elisp-unquoted-get-form  elisp-unquoted-form-equal?
+   elisp-spliced-form?  elisp-backquoted-form?
    )
   (include "parser.scm"))

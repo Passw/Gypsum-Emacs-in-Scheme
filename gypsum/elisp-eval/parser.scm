@@ -913,6 +913,77 @@
 
 ;;--------------------------------------------------------------------------------------------------
 
+;; Quoting Scheme data for use in the elisp interpreter.
+
+(define-record-type <elisp-quote-scheme-type>
+  ;; This type is for wraps a Scheme value to be used directly in the
+  ;; Elisp interpreter. This helps to prevents things like strings,
+  ;; vectors, and list constants from being evaluated as lists in the
+  ;; Elisp environment. Being wrapped in this data type indicates to
+  ;; the Elisp interpreter/compiler that the value should be used
+  ;; as-is. It also is produced by the Elisp parser in the AST as the
+  ;; `(QUOTE ...)` syntax and the quasiquote syntax.
+  ;;------------------------------------------------------------------
+  (elisp-quote-scheme  scheme-value  is-backquote)
+  elisp-quote-scheme-type?
+  (scheme-value  elisp-unquote-scheme)
+  (is-backquote  elisp-backquoted-form?)
+  )
+
+(define elisp-quote-scheme-equal?
+  (case-lambda
+    ((a b)
+     ((elisp-quote-scheme-equal? equal?) a b)
+     )
+    ((equal?)
+     (lambda (a b)
+       (and
+        (elisp-quote-scheme-type? a)
+        (elisp-quote-scheme-type? b)
+        (eq? (elisp-backquoted-form? a)
+             (elisp-backquoted-form? b)
+             )
+        (equal?
+         (elisp-unquote-scheme a)
+         (elisp-unquote-scheme b)
+         ))))))
+
+;;--------------------------------------------------------------------
+
+(define-record-type <elisp-unquoted-form-type>
+  ;; This is the counterpart to the `ELISP-QUOTE-SCHEME-TYPE?`
+  ;; structure, it wraps a value that should be interpreted by the
+  ;; Elisp interpreter as an exception to the rule that forms within
+  ;; the `ELISP-QUOTE-SCHEME-TYPE?` should not be interpreted. It is
+  ;; also produced by the Elisp parser in the AST as the unquote form
+  ;; syntax.
+  ;;------------------------------------------------------------------
+  (elisp-unquoted-form form splice?)
+  elisp-unquoted-form-type?
+  (form     elisp-unquoted-get-form)
+  (splice?  elisp-spliced-form?)
+  )
+
+(define elisp-unquoted-form-equal?
+  (case-lambda
+    ((a b)
+     ((elisp-unquoted-form-equal? equal?) a b)
+     )
+    ((equal?)
+     (lambda (a b)
+       (and
+        (elisp-unquoted-form-type? a)
+        (elisp-unquoted-form-type? b)
+        (eq? (elisp-spliced-form? a)
+             (elisp-spliced-form? b)
+             )
+        (equal?
+         (elisp-unquoted-get-form a)
+         (elisp-unquoted-get-form b)
+         ))))))
+
+;;--------------------------------------------------------------------------------------------------
+
 (define-record-type <elisp-form-type>
   (make<elisp-form> tokens dotted locations start-loc end-loc)
   elisp-form-type?
@@ -1365,24 +1436,11 @@
   ;;  - if 2 arguments, first should be the file path, second should
   ;;    be a value applied to `GET-LOCATION`, apply both the filepath
   ;;    and location to the `WRITE-LEXER-LOCATION` procedure.
-  ;;
-  ;;  - if 3 arguments, the third argument should be a port used
-  ;;    instead of `CURRENT-OUTPUT-PORT`.
   ;;------------------------------------------------------------------
   (case-lambda
-    ((st) (write-lexer-location (%get-location st)))
-    ((filepath location)
-     (cond
-      ((source-file-location-type? location)
-       (write-lexer-location filepath location)
-       )
-      ((elisp-form-type? location)
-       (write-lexer-location
-        filepath (%get-location location) (current-output-port)
-        ))))
-    ((filepath location port)
-     (write-lexer-location filepath (%get-location location) port)
-     )))
+    ((location) (write-parser-location location (current-output-port)))
+    ((location port)
+     (write-lexer-location (%get-location location) port))))
 
 ;;--------------------------------------------------------------------------------------------------
 

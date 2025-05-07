@@ -3,14 +3,14 @@
   (make-parameter (new-empty-environment *default-obarray-size*)))
 
 
-(define (elisp-show-trace)
+(define (elisp-show-stack-frames)
   (let ((st (*the-environment*)))
     (pretty
      (print
-      (print-trace st)
+      (print-stack-frame st)
       "==== stack frames ================"
       (line-break)
-      (print-stack-frames st)))))
+      (print-all-stack-frames st)))))
 
 
 (define =>elisp-symbol!
@@ -77,6 +77,120 @@
      assocs)))
 
 
+(define (new-elisp-raise-impl env halt-eval)
+  ;; This is a constructs for a procedure that raises an exception
+  ;; when an exception occurs in the Emacs Lisp evaluator. The
+  ;; procedure returned by this constructor should be used to
+  ;; parameterize the `RAISE-ERROR-IMPL*` API from the
+  ;; `(GYPSUM ELISP-EVAL ENVIRONMENT)` library.
+  ;;
+  ;; The implementation returned by this procedure takes an error
+  ;; object to be raised, it then updates the error object with a
+  ;; stack trace taken from the `ENV` argument applied to this
+  ;; constructor. The updated error object is then applied to the
+  ;; `HALT-EVAL` procedure applied to this constructor. The
+  ;; `HALT-EVAL` procedure is typically constructed with `CALL/CC`
+  ;; which forces computation to resume at the point in the program
+  ;; where `CALL/CC` was applied, returning the error object.
+  ;;
+  ;; Use this constructor when you want to modify the behavior of the
+  ;; Emacs Lisp evaluator with regard to how it throws exceptions.
+  ;;------------------------------------------------------------------
+  (lambda (err-obj)
+    (cond
+     ((elisp-eval-error-type? err-obj)
+      (lens-set
+       (env-get-stack-trace env)
+       err-obj =>elisp-eval-error-stack-trace
+       )
+      (halt-eval err-obj)
+      )
+     (else (halt-eval err-obj))
+     )))
+
+(define new-elisp-error-handler
+  ;; Construct an error handler from a continuation callback `HALT`.
+  ;; This is a curried procedure that constructs and returns a new
+  ;; procedure that takes exactly one argument, an error object, so it
+  ;; can be used as an error handling procedure for the Scheme
+  ;; `WITH-EXCEPTION-HANDLER` procedure, or can be used to
+  ;; parameterize `ERROR-HANDLER-IMPL*`.
+  ;;
+  ;; The error handling procedure returned by this function has the
+  ;; side effect of printing the stack trace from the Emacs Lisp
+  ;; interpreter to the `CURRENT-OUTPUT-PORT` (or a given port if
+  ;; applied as an argument to `NEW-ELISP-ERROR-HANDLER`) and then
+  ;; returns it the error via the halting procedure parameterized by
+  ;; `RAISE-ERROR-IMPL*`. If the applied error object is not of type
+  ;; `ELISP-EVAL-ERROR-TYPE?`, it is applied to the halting procedure
+  ;; without printing an Emacs Lisp stack trace, if the halting
+  ;; procedure re-raises the exception it may cause your Scheme
+  ;; implementation to print a Scheme stack trace.
+  ;;------------------------------------------------------------------
+  (case-lambda
+    ((env halt-eval)
+     (new-elisp-error-handler env halt-eval (current-output-port))
+     )
+    ((env halt-eval port)
+     (lambda (err-obj)
+       (define (write-irritants irrs)
+         (let loop ((irrs irrs) (i 0))
+           (cond
+            ((pair? irrs)
+             (write-string (number->string i) port)
+             (write-char #\space port)
+             (write (car irrs) port)
+             (newline port)
+             (loop (cdr irrs) (+ 1 i))
+             )
+            (else #f)
+            )))
+       (cond
+        ((elisp-eval-error-type? err-obj)
+         (write-elisp-stack-trace
+          (view err-obj =>elisp-eval-error-stack-trace)
+          port)
+         (newline port)
+         (write-string
+          (view err-obj =>elisp-eval-error-message)
+          port)
+         (newline port)
+         (write-irritants (view err-obj =>elisp-eval-error-irritants)))
+        ((error-object? err-obj)
+         (write-elisp-stack-trace (env-get-stack-trace env) port)
+         (newline port)
+         (let ((msg (error-object-message err-obj)))
+           (cond
+            ((string? msg)
+             (write-string msg port)
+             (newline port)
+             )
+            (else
+             (display "Error: " port)
+             (write msg port)
+             (newline port)
+             )))
+         (write-irritants (error-object-irritants err-obj))
+         )
+        (else #f)
+        )
+       (env-reset-stack! env)
+       (display "----------------------------------------\n" port)
+       (halt-eval err-obj)
+       ))))
+
+(define error-handler-impl*
+  ;; A parameter which must hold an exception handling procedure, this
+  ;; handler is used by `ELISP-EVAL!` to handle exceptions.
+  ;;------------------------------------------------------------------
+  (make-parameter
+   (new-elisp-error-handler
+    (*the-environment*)
+    (lambda (a) a)
+    (current-output-port)
+    )))
+
+
 (define elisp-eval!
   ;; Evaluate an Emacs Lisp expression that has already been parsed
   ;; from a string into a list or vector data structure. The result of
@@ -95,18 +209,31 @@
     ((expr env)
      (call/cc
       (lambda (halt-eval)
-        (let ((run
+        (let*((raise-impl
+               (new-elisp-raise-impl
+                (or env (*the-environment*))
+                halt-eval))
+              (handler
+               (if env
+                   (new-elisp-error-handler env halt-eval)
+                   (error-handler-impl*)))
+              (run
                (lambda ()
-                 (parameterize ((raise-error-impl* halt-eval))
+                 (parameterize ((raise-error-impl* raise-impl))
                    (eval-form expr
-                    (if (elisp-form-type? expr)
-                        (elisp-form-start-loc expr)
-                        #f)
-                    ))
-                 )))
-          (if (not env) (run)
-              (parameterize ((*the-environment* env)) (run))
-              )))))))
+                    (and (elisp-form-type? expr)
+                         (elisp-form-start-loc expr)))
+                   )))
+              )
+          (with-exception-handler handler
+            (lambda ()
+              (if (not env) (run)
+                  (parameterize
+                      ((*the-environment* env)
+                       (error-handler-impl* handler)
+                       )
+                    (run)
+                    ))))))))))
 
 
 (define (eval-iterate-forms env port use-form)
@@ -163,7 +290,11 @@
        (call-with-port port
          (lambda (port)
            (setq-load-file-name filepath)
-           (let*((parst (parse-state port))
+           (let*((parst
+                  (let ((parst (parse-state port)))
+                    (lens-set filepath parst =>parse-state-filepath*!)
+                    parst
+                    ))
                  (old-dialect (view env =>env-lexical-mode?!))
                  (dialect (select-elisp-dialect! parst))
                  )
@@ -498,7 +629,7 @@
      )))
 
 
-(define (eval-bracketed-form head arg-exprs)
+(define (eval-bracketed-form loc head arg-exprs)
   ;; This is the actual `APPLY` procedure for Emacs Lisp. The `HEAD`
   ;; argument is resolved to a procedure, macro, command, or lambda.
   ;; If `HEAD` resolves to a lambda, and `LAMBDA-KIND` is `'MACRO`,
@@ -512,35 +643,35 @@
      ((syntax-type?  func)
       (apply (syntax-eval func) head arg-exprs))
      ((macro-type?   func)
-      (env-trace!
-       st (cons head func)
-       (lambda () (eval-form (apply (macro-procedure func) head arg-exprs)))
-       ))
+      (eval-form (apply (macro-procedure func) head arg-exprs))
+      )
      ((lambda-type?  func)
-      (let ((return ;; TODO: check if this is a macro before calling eval-apply-lambda
-             (env-trace!
-              st (cons head func)
-              (lambda () (eval-apply-lambda func arg-exprs)))))
+      (let ((return
+             (lambda ()
+               (env-trace!
+                loc head func st
+                (lambda () (eval-apply-lambda func arg-exprs))
+                ))))
         (cond ;; macro expand (if its a macro)
-         ((eq? 'macro (view func =>lambda-kind*!)) (eval-form return))
-         (else return)
+         ((eq? 'macro (view func =>lambda-kind*!))
+          (eval-form (return))
+          )
+         (else (return))
          )))
      ((command-type? func)
       (env-trace!
-       st (cons head func)
+       loc head func st
        (lambda () (eval-apply-proc (command-procedure func) arg-exprs))
        ))
      ((procedure?    func)
-      (env-trace!
-       st (cons head func)
-       (lambda () (eval-apply-proc func arg-exprs))
-       ))
+      (eval-apply-proc func arg-exprs)
+      )
      ((pair?         func)
       (match func
         (('lambda (args-exprs ...) body ...)
          (let ((func (apply (syntax-eval elisp-lambda) func)))
            (env-trace!
-            st (cons head func)
+            loc head func st
             (lambda () (eval-apply-lambda func arg-exprs))
             )))
         (any (eval-error "invalid function" func))
@@ -557,14 +688,7 @@
     ((expr loc)
      (match expr
        (() '())
-       ((head args ...)
-        (if loc
-            (env-trace!
-             (*the-environment*) loc
-             (lambda () (eval-bracketed-form head args))
-             )
-            (eval-bracketed-form head args)
-            ))
+       ((head args ...) (eval-bracketed-form loc head args))
        (('quote expr) expr)
        (('quote exprs ...)
         (eval-error
@@ -600,11 +724,8 @@
               )
           literal
           )
-         (else
-          (error "cannot eval" literal)
-          (write literal) (newline)
-          literal
-          )))))))
+         (else literal)
+         ))))))
 
 
 (define (eval-args-list arg-exprs)
@@ -961,13 +1082,24 @@
 (define elisp-lambda
   (make<syntax>
    (lambda expr
-     (let ((expr (%unpack2 (cdr expr))))
-       (match expr
-         (() (new-lambda))
-         (((args ...) body ...)
-          (eval-defun-args-body 'lambda args body))
-         (args (eval-error "invalid lambda" args))
-         )))))
+     (let*((expr (%unpack2 (cdr expr)))
+           (func
+            (match expr
+              (() (new-lambda))
+              (((args ...) body ...)
+               (eval-defun-args-body 'lambda args body))
+              (args (eval-error "invalid lambda" args))
+              ))
+           (trace (view (*the-environment*) =>env-stack-trace*!))
+           (loc (and (pair? trace) (car trace)))
+           )
+       (when (and (lambda-type? func) loc)
+         (lens-set
+          (view loc =>stack-trace-location*!)
+          func =>lambda-location*!
+          ))
+       func
+       ))))
 
 
 (define variable-documentation "variable-documentation")
@@ -1297,7 +1429,8 @@
 (define (eval-set st sym val)
   ;; TODO: check if `SYM` satisfies `SYMBOL?` or `SYM-TYPE?` and act accordingly.
   (update-on-symbol st sym
-   (lambda (obj) (values (lens-set val obj (=>sym-value! sym)) val))))
+   (lambda (obj)
+     (values (lens-set val obj (=>sym-value! (ensure-string sym))) val))))
 
 (define (eval-get st sym prop)
   (view-on-symbol st sym
@@ -1345,7 +1478,7 @@
 (define (eval-apply collect args)
   (match args
     (() (eval-error "wrong number of arguments" args))
-    ((func args ...) (eval-bracketed-form func (collect args)))
+    ((func args ...) (eval-bracketed-form #f func (collect args)))
     ))
 
 (define (re-collect-args args)
@@ -1412,7 +1545,9 @@
       ((sym val)
        (cond
         ((type? sym)
-         (scheme->elisp (op (*the-environment*) sym (scheme->elisp val))))
+         (scheme->elisp
+          (op (*the-environment*) sym (scheme->elisp val))
+          ))
         (else
          (eval-error
           "wrong type argument" name
