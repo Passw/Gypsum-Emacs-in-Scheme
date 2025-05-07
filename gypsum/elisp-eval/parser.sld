@@ -76,8 +76,6 @@
              )
        )))
   (export
-   read-elisp ;; this is the old API
-
    ;;----------------
    ;; The parsing API
    parse-state ;; this constructs a parser state, similar API to 
