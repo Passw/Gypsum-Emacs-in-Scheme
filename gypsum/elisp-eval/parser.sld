@@ -1,8 +1,7 @@
 (define-library (gypsum elisp-eval parser)
   (import
     (scheme base)
-    (scheme write);;DEBUG
-    (scheme lazy);;old parser only
+    (scheme write)
     (scheme case-lambda)
     (only (scheme char)
           char-numeric?  char-alphabetic?  digit-value
@@ -13,7 +12,6 @@
           mutable-vector->vector
           mutable-vector-append!
           )
-    (gypsum elisp-eval lexer)
     (only (gypsum lens)
           record-unit-lens  lens  =>view-only-lens
           view  update  lens-set
@@ -62,19 +60,7 @@
              hash-table-ref/default
              )
        )))
-  ;; -------- File port extensions --------
-  (cond-expand
-    (guile
-     (import
-       (only (guile)
-             port-filename
-             port-line
-             port-column
-             unread-char
-             set-source-properties!
-             source-properties
-             )
-       )))
+
   (export
    ;;----------------
    ;; The parsing API
