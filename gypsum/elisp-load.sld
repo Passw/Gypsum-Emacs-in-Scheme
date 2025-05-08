@@ -19,9 +19,6 @@
           mutable-vector-append!
           =>mvector-index!
           )
-    (only (gypsum elisp-eval parser)
-          read-elisp
-          )
     (only (gypsum elisp-eval pretty)
           elisp-print
           )

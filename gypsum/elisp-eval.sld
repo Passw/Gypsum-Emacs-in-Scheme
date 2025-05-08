@@ -35,21 +35,31 @@
           )
     (only (chibi match) match)
     (prefix (gypsum editor-impl) *impl/)
-    (only (gypsum elisp-eval parser) read-elisp)
+    (only (gypsum elisp-eval parser)
+          elisp-read  select-elisp-dialect!
+          parse-state  =>parse-state-filepath*!
+          elisp-form->list
+          write-elisp-form ;;DEBUG
+          elisp-parse-state-type?
+          elisp-quote-scheme  elisp-unquote-scheme
+          elisp-quote-scheme-type?  elisp-backquoted-form?
+          elisp-unquoted-form-type?  elisp-spliced-form?
+          elisp-unquoted-get-form
+          elisp-form-type?  elisp-function-ref-type?
+          elisp-form-start-loc  elisp-function-get-ref
+          )
     (only (gypsum elisp-eval environment)
-          elisp-quote-scheme-type?
-          elisp-quote-scheme
-          elisp-unquote-scheme
           scheme->elisp  elisp->scheme  elisp-null?
           pure  pure*  pure*-typed  pure*-numbers  pure-raw
           new-empty-environment   elisp-environment-type?  env-alist-defines!
           env-push-new-elstkfrm!   env-pop-elstkfrm!  env-trace!
-          env-resolve-function   env-intern!   env-setq-bind!
+          env-resolve-function   env-intern!   env-setq-bind!  env-reset-stack!
           elstkfrm-from-args   elstkfrm-sym-intern!
           *default-obarray-size*
           *elisp-input-port*  *elisp-output-port*  *elisp-error-port*
           =>interp-cur!  =>interp-env!  =>interp-stk!
           =>env-obarray-key!   =>env-symbol!
+          =>env-stack-trace*!  =>stack-trace-location*!
           =>env-lexstack*!  =>env-obarray*!  =>env-lexical-mode?!
           sym-type?  sym-name  new-symbol  new-symbol-value
           =>sym-name  =>sym-value*!  =>sym-function*!  =>sym-plist*!
@@ -63,14 +73,16 @@
           =>lambda-lexenv!  =>lambda-body!
           =>lambda-declares*!  =>lambda-interactive*!
           =>lambda-body*!  =>lambda-kind*!
-          =>lambda-docstring*!
+          =>lambda-docstring*!  =>lambda-location*!
           make<macro>  macro-type?  macro-procedure  elisp-void-macro
           make<syntax> syntax-type? syntax-eval
           elisp-eval-error-type?  raise-error-impl*
           =>elisp-eval-error-message
           =>elisp-eval-error-irritants
+          =>elisp-eval-error-stack-trace
           eval-raise  eval-error
-          print-trace  print-stack-frames
+          env-get-stack-trace   write-elisp-stack-trace
+          print-stack-frame  print-all-stack-frames
           )
     (only (gypsum elisp-eval format) format format-to-port)
     (only (gypsum keymap)
@@ -110,9 +122,6 @@
    ;; Re-exporting symbols from (GYPSUM ELISP-EVAL ENVIRONMENT):
    ;;------------------------------------------------------------
 
-   ;; Quoting Scheme literals
-   elisp-quote-scheme  elisp-unquote-scheme
-
    ;; Converting data between Scheme and Elisp
    scheme->elisp  elisp->scheme  elisp-null?  pure  pure*
 
@@ -136,9 +145,10 @@
    ;; Macro objects
    make<macro>  macro-procedure
 
-   ;; Error objects
+   ;; Error handling
    elisp-eval-error-type?  =>elisp-eval-error-message  =>elisp-eval-error-irritants
-   elisp-show-trace
+   new-elisp-raise-impl  new-elisp-error-handler  error-handler-impl*
+   elisp-show-stack-frames
    )
 
   (include "elisp-eval.scm")

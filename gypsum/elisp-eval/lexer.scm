@@ -215,7 +215,7 @@
   (make-regexp
    "^[+-]?([0-9]+\\.?[0-9]*|[0-9]*\\.?[0-9]+)(e[+-]?[0-9]+)?$"))
 
-;;; A dot is also allowed literally, only a single dort alone is parsed
+;;; A dot is also allowed literally, only a single dot alone is parsed
 ;;; as the 'dot' terminal for dotted lists.
 
 (define no-escape-punctuation (string->char-set "-+=*/_~!@$%^&:<>{}?."))
@@ -307,7 +307,7 @@
       (cond
        ((eof-object? c) (finish))
        ((need-no-escape? c) (iterate (cons c result-chars) had-escape))
-       ((char=? c #\\) (iterate (cons (read-char port) result-chars) #t))
+       ((char=? c #\\ ) (iterate (cons (read-char port) result-chars) #t))
        (else
         (unread-char c port)
         (finish))))))
@@ -317,21 +317,20 @@
 ;;; then either = or #.
 
 (define (get-circular-marker port)
-  (call-with-values
-      (lambda ()
+  (let-values
+      (((id type)
         (let iterate ((result 0))
           (let ((cur (read-char port)))
             (if (char-numeric? cur)
                 (let ((val (- (char->integer cur) (char->integer #\0))))
                   (iterate (+ (* result 10) val)))
-                (values result cur)))))
-    (lambda (id type)
-      (case type
-        ((#\#) `(circular-ref . ,id))
-        ((#\=) `(circular-def . ,id))
-        (else (lexer-error port
-                           "invalid circular marker character"
-                           type))))))
+                (values result cur))))
+        ))
+    (case type
+      ((#\#) `(circular-ref . ,id))
+      ((#\=) `(circular-def . ,id))
+      (else (lexer-error port "invalid circular marker character" type))
+      )))
 
 ;;; Main lexer routine, which is given a port and does look for the next
 ;;; token.

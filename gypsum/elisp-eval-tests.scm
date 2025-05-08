@@ -13,6 +13,8 @@
         =>env-lexical-mode?!
         *elisp-output-port*
         *elisp-error-port*
+        make<elisp-eval-error>
+        elisp-eval-error-equal?
         )
   (gypsum elisp-eval)
   (gypsum lens)
@@ -23,8 +25,11 @@
         new-mutable-vector
         mutable-vector-length
         mutable-vector-append!)
-  (only (gypsum elisp-eval parser) read-elisp)
   (prefix (gypsum editor-impl) *impl/)
+  (only (gypsum elisp-eval parser)
+        list->elisp-form  elisp-form->list
+        elisp-form-equal?  write-elisp-form
+        )
   )
 (cond-expand
   ((or guile gambit stklos)
@@ -58,136 +63,353 @@
          (view result =>elisp-eval-error-message))))
 
 
-(test-assert (elisp-environment-type? test-elisp-env))
-
-(test-equal "hello" (test-elisp-eval! "hello"))
-
-(test-equal 3 (test-elisp-eval! '(+ 1 2)))
-
-(test-eq #t (test-elisp-eval! '(eq nil nil)))
-
-(test-eq '() (test-elisp-eval! '(eq nil t)))
-
-(test-eq #t (test-elisp-eval! '(eq 5 5)))
-
-(test-eq #t (test-elisp-eval! '(= 5 5 5)))
-
-(test-eq '() (test-elisp-eval! '(= 5 5 6)))
-
-(test-equal "wrong type argument"
-  (test-error-elisp-eval! '(= 5 "hello")))
-
-(test-equal "wrong type argument"
-  (test-error-elisp-eval! '(+ 5 "hello")))
-
-(test-equal '(1 2 3) (test-elisp-eval! '(list 1 2 (+ 1 2))))
-
-(test-eq #t (test-elisp-eval! '(equal (list 5) (list 5))))
-
-(test-eq '() (test-elisp-eval! '(equal (list 5) (list 5 6))))
-
-(test-eqv 2 (test-elisp-eval! '(progn 1 2)))
-
-(test-eqv 3 (test-elisp-eval! '(progn 1 2 (+ 1 2))))
-
-(test-eqv 4 (test-elisp-eval! '(progn (setq a 4) a)))
-
-(test-eqv 5 (test-elisp-eval! '(prog1 5 4 3 2 1)))
-
-(test-eqv 4 (test-elisp-eval! '(prog2 5 4 3 2 1)))
-
-(test-eqv 2 (test-elisp-eval! '(prog1 (+ 1 1) (+ 1 2) (+ 2 3))))
-
-(test-eqv 3 (test-elisp-eval! '(prog2 (+ 1 1) (+ 1 2) (+ 2 3))))
-
-(test-eq #t (test-elisp-eval! '(or nil nil nil t)))
-
-(test-eq #t (test-elisp-eval! '(or (= 1 1 1) nil nil)))
-
-(test-eq '() (test-elisp-eval! '(or nil nil nil (= 0 0 1))))
-
-(test-eq '() (test-elisp-eval! '(and nil nil nil t)))
-
-(test-eq '() (test-elisp-eval! '(and (= 1 1 1) nil nil)))
-
-(test-eq #t (test-elisp-eval! '(and t t t (= 0 0 0))))
-
-(test-eqv 10 (test-elisp-eval! '(if t 10 20)))
-
-(test-eqv 20 (test-elisp-eval! '(if (null t) 10 20)))
-
-(test-eqv 30 (test-elisp-eval! '(if (null t) 10 20 30)))
-
-(test-eq #f (test-elisp-eval! '(when nil 40)))
-(test-eq 50 (test-elisp-eval! '(when t 50)))
-(test-eq 60 (test-elisp-eval! '(unless nil 60)))
-(test-eq #f (test-elisp-eval! '(unless t 70)))
-
-(test-eqv 30
-  (test-elisp-eval!
-   '(cond (nil 10) (nil 20) (t 30) (t 40) (nil 50))))
-
-(test-eqv 30
-  (test-elisp-eval!
-   '(cond ((or nil nil) 10) ((and t nil) 20) ((or t nil) 30) (t 40))))
-
-(test-eqv 5
-  (test-elisp-eval!
-   '(progn
-     (setq a 2 b 3)
-     (+ a b)
+(define (test-run same? expected case-runner list-form)
+  (let ((iden (lambda (a) a))
+        (form-form (list->elisp-form list-form))
+        )
+    (define (run display-type writer conv-result input-form)
+      (let ((result (conv-result (case-runner input-form))))
+        (cond
+         ((same? expected result) #t)
+         (else
+          (display ";; unexpected result: ") (write result) (newline)
+          (display ";;     was expecting: ") (write expected) (newline)
+          (display ";; lisp-eval! on ") (write-string display-type)
+          (display ": ") (writer input-form) (newline)
+          (display ";;--------------------------------------------------------------------\n")
+          #f
+          ))))
+    (and
+     (run "list" write iden list-form)
+     (run "form" write-elisp-form (lambda (form) (elisp-form->list #t form)) form-form)
      )))
 
-(test-eqv 8
-  (test-elisp-eval!
-   '(progn
-     (setq a 3 b 5 c (+ a b))
-     c)))
+;;--------------------------------------------------------------------------------------------------
+;; Test basic function application for built-in arithmetic functions.
 
-(test-equal "wrong number of arguments, setq"
-  (test-error-elisp-eval! '(setq a)))
+(test-assert (elisp-environment-type? test-elisp-env))
 
-(test-eqv 13
-  (test-elisp-eval!
-   '(let ((a 5) (b 8)) (+ a b))))
+(test-assert (test-run equal? "hello" test-elisp-eval! "hello"))
 
-(test-eqv 21
-  (test-elisp-eval!
-   '(let*((a 8) (b (+ 5 a))) (+ a b))))
+(test-assert (test-run equal? 3 test-elisp-eval! '(+ 1 2)))
 
-(test-eqv 34
-  (test-elisp-eval!
-   '(let ((a 21))
-      (setq a (+ a 13))
-      a)))
+(test-assert (test-run eq? #t test-elisp-eval! '(eq nil nil)))
 
-(test-equal '(89 55)
-  (test-elisp-eval!
-   '(progn
-     (setq a 21)
-     (list
-      (let ((b 34))
-        (setq a (+ a b))
-        (setq b (+ a b))
-        b)
-      a))))
+(test-assert (test-run eq? '() test-elisp-eval! '(eq nil t)))
 
-(test-eq '() (test-elisp-eval! '(setq)))
+(test-assert (test-run eq? #t test-elisp-eval! '(eq 5 5)))
 
-(test-equal '() (test-elisp-eval! '(quote ())))
+(test-assert (test-run eq? #t test-elisp-eval! '(= 5 5 5)))
 
-(test-equal '(1 2 3) (test-elisp-eval! '(quote (1 2 3))))
+(test-assert (test-run eq? '() test-elisp-eval! '(= 5 5 6)))
 
-(test-equal '(1 2 3) (test-elisp-eval! '(backquote (1 2 (|,| (+ 1 2))))))
+(test-assert
+    (test-run
+     equal? "wrong type argument" test-error-elisp-eval!
+     '(= 5 "hello")
+     ))
 
-(test-equal '() (test-elisp-eval! '(backquote ())))
+(test-assert
+    (test-run
+     equal? "wrong type argument" test-error-elisp-eval!
+     '(+ 5 "hello")
+     ))
 
-(test-equal '(1 2 3) (test-elisp-eval! '(|`| (1 2 (|,| (+ 1 2))))))
+(test-assert
+    (test-run
+     equal? '(1 2 3) test-elisp-eval!
+     '(list 1 2 (+ 1 2))
+     ))
 
-(test-equal '(1 2 3) (apply test-elisp-eval! '(`(1 2 ,(+ 1 2)))))
+(test-assert
+    (test-run
+     eq? #t test-elisp-eval!
+     '(equal (list 5) (list 5))
+     ))
+
+(test-assert
+    (test-run
+     eq? '() test-elisp-eval!
+     '(equal (list 5) (list 5 6))))
+
+;;--------------------------------------------------------------------------------------------------
+;; Test `PROGN`, `PROG1`, and `PROG2` special forms.
+
+(test-assert
+    (test-run
+     eqv? 2 test-elisp-eval!
+     '(progn 1 2)
+     ))
+
+(test-assert
+    (test-run
+     eqv? 3 test-elisp-eval!
+     '(progn 1 2 (+ 1 2))))
+
+(test-assert
+    (test-run
+     eqv? 4 test-elisp-eval!
+     '(progn (setq a 4) a)
+     ))
+
+(test-assert
+    (test-run
+     eqv? 5 test-elisp-eval!
+     '(prog1 5 4 3 2 1)
+     ))
+
+(test-assert
+    (test-run
+     eqv? 4 test-elisp-eval!
+     '(prog2 5 4 3 2 1)
+     ))
+
+(test-assert
+    (test-run
+     eqv? 2 test-elisp-eval!
+     '(prog1 (+ 1 1) (+ 1 2) (+ 2 3))
+     ))
+
+(test-assert
+    (test-run
+     eqv? 3 test-elisp-eval!
+     '(prog2 (+ 1 1) (+ 1 2) (+ 2 3))
+     ))
+
+;;--------------------------------------------------------------------------------------------------
+;; Test `OR` and `AND` special forms.
+
+(test-assert
+    (test-run
+     eq? #t test-elisp-eval!
+     '(or nil nil nil t)
+     ))
+
+(test-assert
+    (test-run
+     eq? #t test-elisp-eval!
+     '(or (= 1 1 1) nil nil)
+     ))
+
+(test-assert
+    (test-run
+     eq? '() test-elisp-eval!
+     '(or nil nil nil (= 0 0 1))
+     ))
+
+(test-assert
+    (test-run
+     eq? '() test-elisp-eval!
+     '(and nil nil nil t)
+     ))
+
+(test-assert
+    (test-run
+     eq? '() test-elisp-eval!
+     '(and (= 1 1 1) nil nil)
+     ))
+
+(test-assert
+    (test-run
+     eq? #t test-elisp-eval!
+     '(and t t t (= 0 0 0))
+     ))
+
+;;--------------------------------------------------------------------------------------------------
+;; Test `IF`, `WHEN`, `UNLESS`, and `COND` special forms.
+
+(test-assert
+    (test-run
+     eqv? 10 test-elisp-eval!
+     '(if t 10 20)
+     ))
+
+(test-assert
+    (test-run
+     eqv? 20 test-elisp-eval!
+     '(if (null t) 10 20)
+     ))
+
+(test-assert
+    (test-run
+     eqv? 30 test-elisp-eval!
+     '(if (null t) 10 20 30)))
+
+(test-assert
+    (test-run
+     eq? #f test-elisp-eval!
+     '(when nil 40)
+     ))
+(test-assert
+    (test-run
+     eq? 50 test-elisp-eval!
+     '(when t 50)
+     ))
+(test-assert
+    (test-run
+     eq? 60 test-elisp-eval!
+     '(unless nil 60)
+     ))
+(test-assert
+    (test-run
+     eq? #f test-elisp-eval!
+     '(unless t 70)
+     ))
+
+(test-assert
+    (test-run
+     eqv? 30 test-elisp-eval!
+     '(cond (nil 10) (nil 20) (t 30) (t 40) (nil 50))))
+
+(test-assert
+    (test-run
+     eqv? 30 test-elisp-eval!
+     '(cond
+       ((or nil nil) 10)
+       ((and t nil) 20)
+       ((or t nil) 30)
+       (t 40)
+       )))
+
+(test-assert
+    (test-run
+     equal? (new-symbol "hello" 5) test-elisp-eval!
+     '(let ((a (make-symbol "hello")))
+        (set a 5)
+        a)))
+
+(test-assert
+    (test-run
+     equal? "hello" test-elisp-eval!
+     '(let ((a (make-symbol "hello")))
+        (symbol-name a))))
+
+(test-assert
+    (test-run
+     equal? '(3.0 7.0 2.0) test-elisp-eval!
+     '(progn
+       (defun linear-transform-3D (x y z)
+         (let ((x (+ (* -1   x) (*  2 y) (* 0.5 z)))
+               (y (+ (*  1.5 x) (* -1 y) (* 2   z)))
+               (z (+ (* -0.5 x) (*  1 y) (* 0.5 z))))
+           (list x y z)))
+       (linear-transform-3D 4 3 2)
+       )))
+
+(test-assert
+    (test-run
+     equal? '(1 2 4 8) test-elisp-eval!
+     '(let*((a 1)
+            (b (* a 2))
+            (c (* b 2))
+            (d (* c 2)))
+        (list a b c d)
+        )))
+
+;;--------------------------------------------------------------------------------------------------
+;; Test `SETQ`, `LET`, and `LET*` special forms.
+
+(test-assert
+    (test-run
+     eqv? 5 test-elisp-eval!
+     '(progn
+       (setq a 2 b 3)
+       (+ a b)
+       )))
+
+(test-assert
+    (test-run
+     eqv? 8 test-elisp-eval!
+     '(progn
+       (setq a 3 b 5 c (+ a b))
+       c)))
+
+(test-assert
+    (test-run
+     equal? "wrong number of arguments, setq" test-error-elisp-eval!
+     '(setq a)
+     ))
+
+(test-assert
+    (test-run
+     eqv? 13 test-elisp-eval!
+     '(let ((a 5) (b 8)) (+ a b))
+     ))
+
+(test-assert
+    (test-run
+     eqv? 21 test-elisp-eval!
+     '(let*((a 8) (b (+ 5 a)))
+        (+ a b)
+        )))
+
+(test-assert
+    (test-run
+     eqv? 34 test-elisp-eval!
+     '(let ((a 21))
+        (setq a (+ a 13))
+        a)))
+
+(test-assert
+    (test-run
+     equal? '(89 55) test-elisp-eval!
+     '(progn
+       (setq a 21)
+       (list
+        (let ((b 34))
+          (setq a (+ a b))
+          (setq b (+ a b))
+          b)
+        a))))
+
+(test-assert
+    (test-run
+     eq? '() test-elisp-eval!
+     '(setq)))
+
+;;--------------------------------------------------------------------------------------------------
+;; Test quote and quasiquote forms.
+
+(test-assert
+    (test-run
+     equal? '() test-elisp-eval!
+     '(quote ())
+     ))
+
+(test-assert
+    (test-run
+     equal? '(1 2 3)
+     test-elisp-eval!
+     '(quote (1 2 3))
+     ))
+
+;;--------------------------------------------------------------------
+;; The following test cases skip the usual `TEST-RUN` procedure
+;; because it tests both the list form and `<ELISP-FORM-TYPE>` of the
+;; input, but the result of `SCHEME->ELISP` does not (and should not)
+;; be translated to an equivalent `<ELISP-FORM-TYPE>`. So for these
+;; test cases, only the list form of the input should be tested.
+
+(test-equal '(1 2 3)
+  (elisp-eval!
+   (scheme->elisp
+    '(quasiquote (1 2 (unquote (+ 1 2))))
+    )))
+
+(test-equal '() (elisp-eval! (scheme->elisp '(quasiquote ()))))
+
+(test-equal '(1 2 3) (elisp-eval! '(|`| (1 2 (|,| (+ 1 2))))))
+
+(test-equal '(1 2 3) (elisp-eval! (car (scheme->elisp '(`(1 2 ,(+ 1 2)))))))
 
 (test-equal '((+ 3 5) = 8)
-  (test-elisp-eval! '(backquote ((+ ,(+ 1 2) ,(+ 2 3)) = ,(+ 1 2 2 3)))))
+  (elisp-eval!
+   (scheme->elisp
+    '(quasiquote
+      ((+ ,(+ 1 2) ,(+ 2 3)) = ,(+ 1 2 2 3))))))
+
+;;--------------------------------------------------------------------------------------------------
+;; `LAMBDA`, `DEFUN`, `APPLY`, and `FUNCALL` tests.
 
 (test-assert
   (let ((func (test-elisp-eval! '(lambda () nil))))
@@ -198,96 +420,115 @@
      (equal? '(nil) (view func =>lambda-body!)))
     ))
 
-(test-equal '(1 + 2 = 3)
-  (test-elisp-eval!
-   '(progn
-     (setq a 3 b 5)
-     (apply
-      (lambda (a b)
-        (list a '+ b '= (+ a b)))
-      '(1 2)))))
+(test-assert
+    (test-run
+     equal? '(1 + 2 = 3) test-elisp-eval!
+     '(progn
+       (setq a 3 b 5)
+       (apply
+        (lambda (a b)
+          (list a '+ b '= (+ a b)))
+        '(1 2)
+        ))))
 
-(test-equal '() (test-elisp-eval! '(apply (lambda () t nil) '())))
-(test-equal #t  (test-elisp-eval! '(apply (lambda () nil t) '())))
-(test-equal '() (test-elisp-eval! '(apply '(lambda () t nil) '())))
-(test-equal #t  (test-elisp-eval! '(apply '(lambda () nil t) '())))
+(test-assert
+    (test-run
+     equal? '() test-elisp-eval!
+     '(apply (lambda () t nil) '())
+     ))
+(test-assert
+    (test-run
+     equal? #t  test-elisp-eval!
+     '(apply (lambda () nil t) '())
+     ))
+(test-assert
+    (test-run
+     equal? '() test-elisp-eval!
+     '(apply '(lambda () t nil) '())
+     ))
+(test-assert
+    (test-run
+     equal? #t  test-elisp-eval!
+     '(apply '(lambda () nil t) '())
+     ))
 
-(test-equal '(2 + 3 = 5)
-  (test-elisp-eval!
-   '(progn
-     (setq a 5 b 8)
-     (defun f (a b) (list a '+ b '= (+ a b)))
-     (f 2 3)
-     )))
+(test-assert
+    (test-run
+     equal? '(2 + 3 = 5) test-elisp-eval!
+     '(progn
+       (setq a 5 b 8)
+       (defun f (a b) (list a '+ b '= (+ a b)))
+       (f 2 3)
+       )))
 
 (test-equal '(13 + 21 = 34)
-  (test-elisp-eval!
-   '(progn
-     (setq a 13 b 21)
-     (defmacro mac1 (a b) `(list ,a '+ ,b '= ,(+ a b)))
-     (mac1 a b))
-   ))
+  ;; `TEST-EQUAL` is used here because the Scheme form input must be
+  ;; converted to Elisp using `SCHEME->ELSIP` which encodes
+  ;; quasiquotes in a way that is compatible with Emacs Lisp, and is a
+  ;; different encoding from `LIST->ELISP-FORM`. So we test the
+  ;; `ELISP-FORM-TYPE?` encoding on it's own here.
+  (elisp-form->list
+   (elisp-eval!
+    (list->elisp-form
+     '(progn
+       (setq x 13 y 21)
+       (defmacro mac1 (a b) `(list ,a '+ ,b '= (+ ,a ,b)))
+       (mac1 x y)
+       )))))
 
-(test-equal '(list 13 '+ 21 '= 34)
-  (test-elisp-eval!
-   '(progn
-     (setq a 13 b 21)
-     (macroexpand '(mac1 a b))
-     )))
+(test-equal '(13 + 21 = 34)
+  ;; `TEST-EQUAL` is used here because the Scheme form input must be
+  ;; converted to Elisp using `SCHEME->ELSIP` which encodes
+  ;; quasiquotes in a way that is compatible with Emacs Lisp, and is a
+  ;; different encoding from `LIST->ELISP-FORM`. So we test the
+  ;; `LIST?` encoding on it's own here.
+  (elisp-eval!
+   (scheme->elisp
+    '(progn
+      (setq x 13 y 21)
+      (defmacro mac1 (a b) `(list ,a '+ ,b '= (+ ,a ,b)))
+      (mac1 x y)
+      ))))
 
-(test-eqv 45
-  (test-elisp-eval!
-   '(let ((sum 0) (i 0))
-      (while (< i 10)
-        (setq sum (+ sum i))
-        (setq i (1+ i)))
-      sum)))
+(test-equal '(list 13 '+ 21 '= (+ 13 21))
+  (elisp-eval!
+   (scheme->elisp
+    '(progn
+      (defmacro mac1 (a b) `(list ,a '+ ,b '= (+ ,a ,b)))
+      (macroexpand '(mac1 13 21))
+      ))))
 
-(test-eqv 55
-  (test-elisp-eval!
-   '(let ((sum 0))
-      (dotimes (n 11 sum)
-        (setq sum (+ sum n))
-        nil))))
 
-(test-eqv (+ 1 1 2 3 5 8 13 21 34)
-  (test-elisp-eval!
-   '(let ((sum 0))
-      (dolist (n '(1 1 2 3 5 8 13 21 34) sum)
-        (setq sum (+ n sum))
-        nil))))
+;;--------------------------------------------------------------------------------------------------
+;; Testing `WHILE`, `DOTIMES`, and `DOLIST`
 
-(test-equal (new-symbol "hello" 5)
-  (test-elisp-eval!
-   '(let ((a (make-symbol "hello")))
-      (set a 5)
-      a)))
+(test-assert
+    (test-run
+     eqv? 45 test-elisp-eval!
+     '(let ((sum 0) (i 0))
+        (while (< i 10)
+          (setq sum (+ sum i))
+          (setq i (1+ i)))
+        sum)))
 
-(test-equal "hello"
-  (test-elisp-eval!
-   '(let ((a (make-symbol "hello")))
-      (symbol-name a))))
+(test-assert
+    (test-run
+     eqv? 55 test-elisp-eval!
+     '(let ((sum 0))
+        (dotimes (n 11 sum)
+          (setq sum (+ sum n))
+          nil))))
 
-(test-equal '(3.0 7.0 2.0)
-  (test-elisp-eval!
-   '(progn
-     (defun linear-transform-3D (x y z)
-       (let ((x (+ (* -1   x) (*  2 y) (* 0.5 z)))
-             (y (+ (*  1.5 x) (* -1 y) (* 2   z)))
-             (z (+ (* -0.5 x) (*  1 y) (* 0.5 z))))
-         (list x y z)))
-     (linear-transform-3D 4 3 2)
-     )))
+(test-assert
+    (test-run
+     eqv? (+ 1 1 2 3 5 8 13 21 34) test-elisp-eval!
+     '(let ((sum 0))
+        (dolist (n '(1 1 2 3 5 8 13 21 34) sum)
+          (setq sum (+ n sum))
+          nil))))
 
-(test-equal '(1 2 4 8)
-  (test-elisp-eval!
-   '(let*((a 1)
-          (b (* a 2))
-          (c (* b 2))
-          (d (* c 2)))
-      (list a b c d)
-      )))
-
+;;--------------------------------------------------------------------------------------------------
+;; Testing `&OPTIONAL` keyword in `DEFUN`
 
 (test-assert
   (test-elisp-eval!
@@ -302,17 +543,29 @@
       t
       )))
 
-(test-equal '(17 23)
-  (test-elisp-eval! '(test-optargs)))
+(test-assert
+    (test-run
+     equal? '(17 23) test-elisp-eval!
+     '(test-optargs)
+     ))
 
-(test-equal '(29 29)
-  (test-elisp-eval! '(test-optargs 29)))
+(test-assert
+    (test-run
+     equal? '(29 29) test-elisp-eval!
+     '(test-optargs 29)
+     ))
 
-(test-equal '(31 31)
-  (test-elisp-eval! '(test-optargs nil 31)))
+(test-assert
+    (test-run
+     equal? '(31 31) test-elisp-eval!
+     '(test-optargs nil 31)
+     ))
 
-(test-equal '(12 35)
-  (test-elisp-eval! '(test-optargs 5 7)))
+(test-assert
+    (test-run
+     equal? '(12 35) test-elisp-eval!
+     '(test-optargs 5 7)
+     ))
 
 
 (test-assert
@@ -321,22 +574,25 @@
       (list (+ (if x x 0) (if y y 0)) (apply '+ args))
       )))
 
-(test-equal '(0  0) (test-elisp-eval! '(test-restargs)))
-(test-equal '(3  0) (test-elisp-eval! '(test-restargs 3)))
-(test-equal '(8  0) (test-elisp-eval! '(test-restargs 3 5)))
-(test-equal '(8  8) (test-elisp-eval! '(test-restargs 3 5 8)))
-(test-equal '(8 21) (test-elisp-eval! '(test-restargs 3 5 8 13)))
-(test-equal '(8 42) (test-elisp-eval! '(test-restargs 3 5 8 13 21)))
+(test-assert (test-run equal? '(0  0) test-elisp-eval! '(test-restargs)))
+(test-assert (test-run equal? '(3  0) test-elisp-eval! '(test-restargs 3)))
+(test-assert (test-run equal? '(8  0) test-elisp-eval! '(test-restargs 3 5)))
+(test-assert (test-run equal? '(8  8) test-elisp-eval! '(test-restargs 3 5 8)))
+(test-assert (test-run equal? '(8 21) test-elisp-eval! '(test-restargs 3 5 8 13)))
+(test-assert (test-run equal? '(8 42) test-elisp-eval! '(test-restargs 3 5 8 13 21)))
 
 
-(test-equal '(0 . 1)
-  (test-elisp-eval!
-   '(let ((pair (cons nil nil)))
-      (setcar pair 0)
-      (setcdr pair 1)
-      pair)))
+(test-assert
+    (test-run
+     equal? '(0 . 1) test-elisp-eval!
+     '(let ((pair (cons nil nil)))
+        (setcar pair 0)
+        (setcdr pair 1)
+        pair
+        )))
 
 ;;--------------------------------------------------------------------------------------------------
+;; Testing `PRINC`, `FORMAT`, and `MESSAGE`.
 
 (define (test-elisp-eval-both-ports! expr)
   (call-with-port (open-output-string)
@@ -390,9 +646,11 @@
    '(message "Hello, %s" "world!")))
 
 ;;--------------------------------------------------------------------------------------------------
+;; Testing lexical and dynamic scoping
 
 (define test-elisp-progn-var-scope-test
-  '(progn
+  (list->elisp-form
+   '(progn
      (princ "------------------------------\n")
      (setq glo "top")
      (defun printglo (who)
@@ -427,7 +685,7 @@
      (runfn 'fn-B)
      (printglo 'top)
      (princ "------------------------------\n")
-     t)
+     t))
   )
 
 (define lexical-scope-test-expected-result
@@ -497,28 +755,31 @@ top: glo = top
 (lens-set #t test-elisp-env =>env-lexical-mode?!)
 
 ;;--------------------------------------------------------------------------------------------------
+;; Testing `DEFALIAS`
 
-(test-equal '(1 1 2 2 2 1 1)
-  (test-elisp-eval! 
-   '(progn
-      (unintern 'abcd)
-      (unintern 'bcde)
-      (defun abcd () 1)
-      (defalias 'bcde 'abcd)
-      (let ((a (abcd))
-            (b (bcde)))
-        (defun abcd () 2)
-        (let ((c (abcd))
-              (d (bcde)))
-          (unintern 'abcd)
-          (let ((e (bcde)))
-            (defun abcd () 1)
-            (let ((f (abcd))
-                  (g (bcde)))
-              (list a b c d e f g)
-              )))))))
+(test-assert
+    (test-run
+     equal? '(1 1 2 2 2 1 1) test-elisp-eval! 
+     '(progn
+       (unintern 'abcd)
+       (unintern 'bcde)
+       (defun abcd () 1)
+       (defalias 'bcde 'abcd)
+       (let ((a (abcd))
+             (b (bcde)))
+         (defun abcd () 2)
+         (let ((c (abcd))
+               (d (bcde)))
+           (unintern 'abcd)
+           (let ((e (bcde)))
+             (defun abcd () 1)
+             (let ((f (abcd))
+                   (g (bcde)))
+               (list a b c d e f g)
+               )))))))
 
 ;;--------------------------------------------------------------------------------------------------
+;; Testing hooks
 
 (test-assert
   (test-elisp-eval!
@@ -541,82 +802,86 @@ top: glo = top
       t)
    ))
 
-(test-eqv 1
-  (test-elisp-eval!
-   '(progn
-     (setq ramin-hook-test 0)
-     (run-hooks 'ramin-hook-A)
-     ramin-hook-test
-     )))
-
-(test-eqv 8
-  (test-elisp-eval!
-   '(progn
-      (setq ramin-hook-test 0)
-      (run-hooks 'ramin-hook-ABA 'ramin-hook-B 'ramin-hook-BAB 'ramin-hook-A)
-      ramin-hook-test
-      )))
-
-(test-eqv 0
-  ;; In order to make sure hooks are as confusing as possible, Emacs
-  ;; `RUN-HOOKS` requires a symbol that evaluates to a symbol that was
-  ;; defined with `DEFUN`, or a symbol to a list to a symbol defined
-  ;; with `DEFUN`. You cannot simply pass a symbol that was defined
-  ;; with `DEFUN`, nor can you pass a symbol to a symbol to a symbol
-  ;; to a `DEFUN`. The symbol dereferencing must use *exactly* 2
-  ;; levels of indirection, and the first level of indirection *must*
-  ;; resolve to either a symbol or a list of symbols.
-  (test-elisp-eval!
-   '(progn
-      (setq ramin-hook-test 0)
-      (run-hooks
-       ramin-hook-B
-       ramin-hook-A
-       'ramin-hook-success+1
-       'ramin-hook-failure+1
-       )
-      ramin-hook-test
-      )))
-
-(test-equal '(4 3)
-  (test-elisp-eval!
-   '(list
-     (progn
+(test-assert
+    (test-run
+     eqv? 1 test-elisp-eval!
+     '(progn
        (setq ramin-hook-test 0)
-       (run-hook-with-args-until-failure 'ramin-hook-A)
-       (run-hook-with-args-until-failure 'ramin-hook-B)
-       (run-hook-with-args-until-failure 'ramin-hook-ABA)
+       (run-hooks 'ramin-hook-A)
        ramin-hook-test
-       )
-     (progn
-       (setq ramin-hook-test 0)
-       (run-hook-with-args-until-failure 'ramin-hook-A)
-       (run-hook-with-args-until-failure 'ramin-hook-B)
-       (run-hook-with-args-until-failure 'ramin-hook-BAB)
-       ramin-hook-test
-       )
-    )))
+       )))
 
-(test-equal '(3 4)
-  (test-elisp-eval!
-   '(list
-     (progn
+(test-assert
+    (test-run
+     eqv? 8 test-elisp-eval!
+     '(progn
        (setq ramin-hook-test 0)
-       (run-hook-with-args-until-success 'ramin-hook-A)
-       (run-hook-with-args-until-success 'ramin-hook-B)
-       (run-hook-with-args-until-success 'ramin-hook-ABA)
+       (run-hooks 'ramin-hook-ABA 'ramin-hook-B 'ramin-hook-BAB 'ramin-hook-A)
        ramin-hook-test
-      )
-     (progn
+       )))
+
+(test-assert
+    (test-run
+     eqv? 0 test-elisp-eval!
+     ;; In order to make sure hooks are as confusing as possible, Emacs
+     ;; `RUN-HOOKS` requires a symbol that evaluates to a symbol that was
+     ;; defined with `DEFUN`, or a symbol to a list to a symbol defined
+     ;; with `DEFUN`. You cannot simply pass a symbol that was defined
+     ;; with `DEFUN`, nor can you pass a symbol to a symbol to a symbol
+     ;; to a `DEFUN`. The symbol dereferencing must use *exactly* 2
+     ;; levels of indirection, and the first level of indirection *must*
+     ;; resolve to either a symbol or a list of symbols.
+     '(progn
        (setq ramin-hook-test 0)
-       (run-hook-with-args-until-success 'ramin-hook-A)
-       (run-hook-with-args-until-success 'ramin-hook-B)
-       (run-hook-with-args-until-success 'ramin-hook-BAB)
+       (run-hooks
+        ramin-hook-B
+        ramin-hook-A
+        'ramin-hook-success+1
+        'ramin-hook-failure+1
+        )
        ramin-hook-test
-      )
-    )))
+       )))
+
+(test-assert
+    (test-run
+     equal? '(4 3) test-elisp-eval!
+     '(list
+       (progn
+        (setq ramin-hook-test 0)
+        (run-hook-with-args-until-failure 'ramin-hook-A)
+        (run-hook-with-args-until-failure 'ramin-hook-B)
+        (run-hook-with-args-until-failure 'ramin-hook-ABA)
+        ramin-hook-test
+        )
+       (progn
+        (setq ramin-hook-test 0)
+        (run-hook-with-args-until-failure 'ramin-hook-A)
+        (run-hook-with-args-until-failure 'ramin-hook-B)
+        (run-hook-with-args-until-failure 'ramin-hook-BAB)
+        ramin-hook-test
+        ))))
+
+(test-assert
+    (test-run
+     equal? '(3 4) test-elisp-eval!
+     '(list
+       (progn
+        (setq ramin-hook-test 0)
+        (run-hook-with-args-until-success 'ramin-hook-A)
+        (run-hook-with-args-until-success 'ramin-hook-B)
+        (run-hook-with-args-until-success 'ramin-hook-ABA)
+        ramin-hook-test
+        )
+       (progn
+        (setq ramin-hook-test 0)
+        (run-hook-with-args-until-success 'ramin-hook-A)
+        (run-hook-with-args-until-success 'ramin-hook-B)
+        (run-hook-with-args-until-success 'ramin-hook-BAB)
+        ramin-hook-test
+        ))))
 
 ;;--------------------------------------------------------------------------------------------------
+;; Testing `FEATUREP` and `REQUIRE`
 
 (test-assert (not (test-elisp-eval! '(featurep 'feature-A))))
 (test-assert (test-elisp-eval! '(progn (provide 'feature-A 'subfeature-B 'subfeature-C) t)))

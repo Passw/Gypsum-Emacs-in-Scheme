@@ -1,22 +1,5 @@
 
 ;;--------------------------------------------------------------------
-;; Quoting Scheme data for use in the elisp interpreter.
-
-(define-record-type <elisp-quote-scheme-type>
-  ;; This type is for wraps a Scheme value to be used directly in the
-  ;; Elisp interpreter. This helps to prevents things like strings,
-  ;; vectors, and list constants from being evaluated as lists in the
-  ;; Elisp environment. Being wrapped in this data type indicates to
-  ;; the Elisp interpreter/compiler that the value should be used
-  ;; as-is.
-  ;;------------------------------------------------------------------
-  (elisp-quote-scheme scheme-value)
-  elisp-quote-scheme-type?
-  (scheme-value  elisp-unquote-scheme)
-  )
-
-
-;;--------------------------------------------------------------------
 ;; Symbol objects
 
 (define-record-type <sym-type>
@@ -46,6 +29,13 @@
      sym-name setter
      (default-unit-lens-updater sym-name setter)
      '=>sym-name)))
+
+(define (sym-name-equal? a b)
+  (and
+   (sym-type? a)
+   (sym-type? b)
+   (string=? (sym-name a) (sym-name b))
+   ))
 
 (define =>sym-value*! (record-unit-lens sym-value set!sym-value '=>sym-value*!))
 (define =>sym-function*! (record-unit-lens sym-function set!sym-function '=>sym-function*!))
@@ -172,13 +162,14 @@
 ;; Lambdas of all kinds, including macros and built-ins
 
 (define-record-type <lambda-type>
-  (make<lambda> kind args optargs rest doc decls inter lexenv body)
+  (make<lambda> kind args optargs rest doc loc decls inter lexenv body)
   lambda-type?
   (kind     lambda-kind         set!lambda-kind)
   (args     lambda-args         set!lambda-args)
   (optargs  lambda-optargs      set!lambda-optargs)
   (rest     lambda-rest         set!lambda-rest)
   (doc      lambda-docstring    set!lambda-docstring)
+  (loc      lambda-location     set!lambda-location)
   (decls    lambda-declares     set!lambda-declares)
   (inter    lambda-interactive  set!lambda-interactive)
   (lexenv   lambda-lexenv       set!lambda-lexenv)
@@ -190,6 +181,7 @@
 (define =>lambda-optargs*! (record-unit-lens lambda-optargs set!lambda-optargs '=>lambda-optargs*!))
 (define =>lambda-rest*! (record-unit-lens lambda-rest set!lambda-rest '=>lambda-rest*!))
 (define =>lambda-docstring*! (record-unit-lens lambda-docstring set!lambda-docstring '=>lambda-docstring*!))
+(define =>lambda-location*! (record-unit-lens lambda-location set!lambda-location '=>lambda-location*!))
 (define =>lambda-declares*! (record-unit-lens lambda-declares set!lambda-declares '=>lambda-declares*!))
 (define =>lambda-interactive*! (record-unit-lens lambda-interactive  set!lambda-interactive '=>lambda-interactive*!))
 (define =>lambda-lexenv*! (record-unit-lens lambda-lexenv set!lambda-lexenv '=>lambda-lexenv*!))
@@ -200,8 +192,6 @@
            (lambda-args o)      
            (lambda-optargs o)   
            (lambda-rest o)      
-           (lambda-docstring o) 
-           (lambda-declares o)  
            (lambda-lexenv o)    
            (lambda-body o)      
            ))
@@ -210,7 +200,7 @@
 (define new-lambda
   (case-lambda
     (() (new-lambda 'lambda))
-    ((kind) (make<lambda> kind '() '() #f #f #f #f #f #f))
+    ((kind) (make<lambda> kind '() '() #f #f #f #f #f #f #f))
     ((kind args) (new-lambda kind args '() #f #f #f))
     ((kind args opts) (new-lambda kind args opts #f #f #f))
     ((kind args opts rest) (new-lambda kind args opts rest #f #f))
@@ -220,7 +210,7 @@
       (map ensure-string args)
       (map ensure-string opts)
       (if rest (ensure-string rest) #f)
-      docstr #f #f #f body))
+      docstr #f #f #f #f body))
     ))
 
 (define (lambda-copy-into! to from)
@@ -241,6 +231,7 @@
 (define =>lambda-args! (canon-lambda =>lambda-args*!))
 (define =>lambda-optargs! (canon-lambda =>lambda-optargs*!))
 (define =>lambda-rest! (canon-lambda =>lambda-rest*!))
+(define =>lambda-location! (canon-lambda =>lambda-location*!))
 (define =>lambda-docstring! (canon-lambda =>lambda-docstring*!))
 (define =>lambda-declares! (canon-lambda =>lambda-declares*!))
 (define =>lambda-lexenv! (canon-lambda =>lambda-lexenv*!))
@@ -249,10 +240,11 @@
 ;;--------------------------------------------------------------------
 
 (define-record-type <elisp-eval-error-type>
-  (make<elisp-eval-error> message irritants)
+  (make<elisp-eval-error> message irritants trace)
   elisp-eval-error-type?
-  (message    elisp-eval-error-message    set!elisp-eval-message)
-  (irritants  elisp-eval-error-irritants  set!elisp-eval-irritants)
+  (message    elisp-eval-error-message      set!elisp-eval-message)
+  (irritants  elisp-eval-error-irritants    set!elisp-eval-irritants)
+  (trace      elisp-eval-error-stack-trace  set!elisp-eval-error-stack-trace)
   )
 
 
@@ -268,6 +260,21 @@
    set!elisp-eval-irritants
    '=>elisp-eval-error-irritants))
 
+(define =>elisp-eval-error-stack-trace
+  (record-unit-lens
+   elisp-eval-error-stack-trace
+   set!elisp-eval-error-stack-trace
+   '=>elisp-eval-error-stack-trace))
+
+(define (elisp-eval-error-equal? a b)
+  (and
+   (equal?
+    (view a =>elisp-eval-error-message)
+    (view b =>elisp-eval-error-message))
+   (equal?
+    (view a =>elisp-eval-error-irritants)
+    (view b =>elisp-eval-error-irritants)
+    )))
 
 (define default-raise-error-impl raise)
 
@@ -276,7 +283,8 @@
 (define (eval-raise err-obj) ((raise-error-impl*) err-obj))
 
 (define (eval-error message . irritants)
-  (eval-raise (make<elisp-eval-error> message irritants)))
+  (eval-raise
+   (make<elisp-eval-error> message irritants #f)))
 
 ;;--------------------------------------------------------------------
 ;; The stack
@@ -436,6 +444,138 @@
 
 ;;--------------------------------------------------------------------
 
+(define-record-type <stack-trace-frame-type>
+  (make<stack-trace-frame> location symbol func frames)
+  stack-trace-frame-type?
+  (location   stack-trace-location  set!stack-trace-location)
+  (symbol     stack-trace-symbol    set!stack-trace-symbol)
+  (func       stack-trace-func      set!stack-trace-func)
+  (frames     stack-trace-frames    set!stack-trace-frames)
+  )
+
+(define (new-stack-trace-frame location symbol func)
+  ;; Construct a new object containing information for the current
+  ;; stack trace. It takes three arguments:
+  ;;
+  ;;  1. location, as in the tokenizer or parser location indicating
+  ;;     the source from where the currently evaluating code was read.
+  ;;
+  ;;  2. a symbol indicating which procedure is currently being
+  ;;     evaluated, or `#T` for the top-level
+  ;;
+  ;;  3. an object of type `LAMBDA-TYPE?` containing the code being
+  ;;     evaluated.
+  ;;------------------------------------------------------------------
+  (make<stack-trace-frame> location symbol func '())
+  )
+
+(define =>stack-trace-location*!
+  (record-unit-lens
+   stack-trace-location
+   set!stack-trace-location
+   '=>stack-trace-location*!
+   ))
+
+(define =>stack-trace-symbol*!
+  (record-unit-lens
+   stack-trace-symbol
+   set!stack-trace-symbol
+   '=>stack-trace-symbol*!
+   ))
+
+(define =>stack-trace-func*!
+  (record-unit-lens
+   stack-trace-func
+   set!stack-trace-func
+   '=>stack-trace-func*!
+   ))
+
+(define =>stack-trace-frames*!
+  (record-unit-lens
+   stack-trace-frames
+   set!stack-trace-frames
+   '=>stack-trace-frames*!
+   ))
+
+(define write-stack-trace-frame
+  (case-lambda
+    ((fr) (write-stack-trace-frame fr (current-output-port)))
+    ((fr port)
+     (let ((loc (stack-trace-location fr))
+           (sym (stack-trace-symbol fr))
+           )
+       (when (source-file-location-type? loc)
+         (write-parser-location loc port)
+         (write-string ": " port)
+         )
+       (cond
+        ((eq? #t sym) (write-string "#t" port))
+        ((eq? #f sym) (write-string "#f" port))
+        ((symbol? sym) (write-string (symbol->string sym) port))
+        ((sym-type? sym) (write-string (sym-name sym) port))
+        ((string? sym) (display sym port))
+        (else (error "unknown type used for stack trace symbol" fr))
+        )
+       #t))))
+
+;;--------------------------------------------------------------------
+
+(define-record-type <elisp-stack-trace>
+  (make<elisp-stack-trace> vec)
+  elisp-stack-trace-type?
+  (vec  elisp-stack-trace->vector)
+  )
+
+(define (elisp-stack-trace-ref stktrc n)
+  (vector-ref (elisp-stack-trace->vector stktrc) n)
+  )
+
+(define spaces
+  #("" " " "  " "   " "    " "     " "      " "       "))
+
+(define (count-digits-b10 n)
+  (cond
+   ((not n) #f)
+   ((< n 10) 1)
+   ((< n 100) 2)
+   ((< n 1000) 3)
+   ((< n 10000) 4)
+   ((< n 100000) 5)
+   ((< n 1000000) 6)
+   (else 7)
+   ))
+
+(define write-elisp-stack-trace
+  (case-lambda
+    ((tr) (write-elisp-stack-trace tr (current-output-port)))
+    ((tr port)
+     (let*((vec (elisp-stack-trace->vector tr))
+           (len (and (vector? vec) (vector-length vec)))
+           (maxdigits (count-digits-b10 len))
+           )
+       (cond
+        (len
+         (let loop ((i 0) (pfxspace 1))
+           (cond
+            ((< i len)
+             (let ((nspaces (- maxdigits pfxspace)))
+               (when (> nspaces 0)
+                 (write-string (vector-ref spaces nspaces))
+                 ))
+             (write-string (number->string i) port)
+             (write-char #\space)
+             (write-stack-trace-frame (vector-ref vec i) port)
+             (newline port)
+             (let ((i (+ 1 i)))
+               (loop i (count-digits-b10 i))
+               ))
+            (else #t)
+            )))
+        (else #f)
+        )))))
+
+;;--------------------------------------------------------------------
+
 (define-record-type <elisp-environment-type>
   ;; This is the environment object used for the Emacs Lisp evaluator.
   ;; Use `NEW-ENVIRONMENT` to construct an object of this type.
@@ -482,22 +622,48 @@
   (update (lambda (stack) (cdr stack)) st =>env-stack-trace*!))
 
 
-(define env-trace!
-  ;; Assuming the `PROC` argument is a procedure that returns exactly
-  ;; 1 value, push `PROC` onto the stack, evaluate proc, capture the
-  ;; return value of `PROC`, pop the stack, and return the value
-  ;; returned by `PROC`. Optionally pass three arguments where the
-  ;; second argument `ELEM` is pushed in place of the third argument
-  ;; `PROC`.
+(define (env-trace! loc sym func st run)
+  ;; Takes the same three arguments as `NEW-STACK-TRACE-FRAME`, a 4th
+  ;; thunk procedure that performs evaluation of some Emacs Lisp code
+  ;; and returns the resulting Emacs Lisp data. Also optionally takes
+  ;; a 5th argument, the Emacs Lisp environment object, defaulting to
+  ;; the content of `*THE-ENVIRONMENT*`.
   ;;------------------------------------------------------------------
-  (case-lambda
-    ((st proc) (env-trace! st proc proc))
-    ((st elem proc)
-     (env-push-trace! st elem)
-     (let ((result (proc)))
-       (env-pop-trace! st)
-       result
-       ))))
+  (env-push-trace! st (new-stack-trace-frame loc sym func))
+  (let ((result (run)))
+    (env-pop-trace! st)
+    result
+    ))
+
+(define (env-get-stack-trace env)
+  (let*((trace (env-trace env))
+        (size (and trace (length trace)))
+        (vec (and size (make-vector size)))
+        )
+    (cond
+     ((and size (> size 0))
+      (let loop ((i size) (trace trace))
+        (let ((i (- i 1)))
+          (vector-set! vec i (car trace))
+          (if (<= i 0)
+              (make<elisp-stack-trace> vec)
+              (loop i (cdr trace))
+              ))))
+     (else (make<elisp-stack-trace> #f))
+     )))
+
+
+(define =>env-trace-location*!
+  (lens =>env-stack-trace*! =>car =>stack-trace-location*!))
+
+(define =>env-trace-symbol*!
+  (lens =>env-stack-trace*! =>car =>stack-trace-symbol*!))
+
+(define =>env-trace-func*!
+  (lens =>env-stack-trace*! =>car =>stack-trace-func*!))
+
+(define =>env-trace-frames*!
+  (lens =>env-stack-trace*! =>car =>stack-trace-frames*!))
 
 
 (define (env-reset-stack! st)
@@ -512,19 +678,9 @@
   st)
 
 
-(define (print-trace st)
-  (let ((len (length (env-trace st))))
-    (let loop ((trace (reverse (env-trace st))) (i 0))
-      (cond
-       ((null? trace) #f)
-       (else
-        (let ((tr (car trace)))
-          (print i ": " (if (sym-type? tr) (sym-name tr) tr) (line-break))
-          (loop (cdr trace) (- i 1))
-          ))))))
-
-
-(define (print-stack-frames st)
+(define (print-all-stack-frames st)
+  ;; Shows all local variables in all stack frames.
+  ;;------------------------------------------------------------------
   (define (print-pair pair)
     (let ((label (car pair))
           (symbol (cdr pair))
@@ -561,6 +717,18 @@
    ";;---- lexstack ------------------" (line-break)
    (print-frames (env-lexstack st))
    ))
+
+(define (print-stack-frame st)
+  (let ((len (length (env-trace st))))
+    (let loop ((trace (reverse (env-trace st))) (i 0))
+      (cond
+       ((null? trace) #f)
+       (else
+        (let ((tr (car trace)))
+          (print i ": " (if (sym-type? tr) (sym-name tr) tr) (line-break))
+          (loop (cdr trace) (- i 1))
+          ))))))
+
 
 
 (define (env-pop-elstkfrm! st)
@@ -758,48 +926,64 @@
 (define (elisp-null? val) (or (null? val) (not val)))
 
 (define (scheme->elisp val)
-  (define (replace val)
+  (define (replace-elem elem)
     (cond
-     ((pair? val)
-      (let ((head (car val)) (tail (cdr val)))
-        (cond
-         ((eq? head 'unquote)    (cons '|,| tail))
-         ((eq? head 'quasiquote) (cons '|`| tail))
-         (else val))))
-     (else val)
+     ((pair? elem) (scheme->elisp elem))
+     (else elem)
      ))
-  (let loop ((val (replace val)))
+  (define (replace-head head)
     (cond
-     ((not   val) '())
-     ((pair? val)
-      (let ((head (car val)) (tail (cdr val)))
-        (cons
-         (if (pair? head) (scheme->elisp head) (loop head))
-         (loop tail))))
-     ((char? val) (char->integer val))
-     (else val)
-     )))
+     ((symbol? head)
+      (case head
+        ((unquote) '|,|)
+        ((quasiquote) '|`|)
+        ((unquote-splicing) '|,@|)
+        (else head)
+        ))
+     (else (replace-elem head))
+     ))
+  (cond
+   ((not   val) '())
+   ((pair? val)
+    (cons
+     (replace-head (car val))
+     (map replace-elem (cdr val))
+     ))
+   (else val)
+   ))
 
 
 (define (elisp->scheme val)
-  (define (replace val)
+  (define (replace-elem elem)
     (cond
      ((pair? val)
       (let ((head (car val)) (tail (cdr val)))
-        (cond
-         ((eq? head '|`|) (cons 'quasiquote tail))
-         ((eq? head '|,|) (cons 'unquote    tail))
+        (case head
+         ((|`|)  (cons 'quasiquote tail))
+         ((|,|)  (cons 'unquote    tail))
+         ((|,@|) (cons 'unquote-splicing tail))
          (else val)
          )))
      (else val)
      ))
-  (let loop ((val (replace val)))
+  (define (replace-head head)
+    (cond
+     ((symbol? head)
+      (case head
+        ((|`|)  'quasiquote)
+        ((|,|)  'unquote)
+        ((|,@|) 'unquote-splicing)
+        (else head)
+        ))
+     (else (replace-elem head))
+     ))
+  (let loop ((val val))
     (cond
      ((pair? val)
-      (let ((head (car val)) (tail (cdr val)))
-        (cons
-         (if (pair? val) (elisp->scheme head) (loop head))
-         (elisp->scheme tail))))
+      (cons
+       (replace-head (car val))
+       (map replace-elem (cdr val))
+       ))
      (else val)
      )))
 

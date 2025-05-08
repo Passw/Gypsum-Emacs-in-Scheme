@@ -37,20 +37,20 @@
           update  endo-update  update&view
           *default-hash-table-constructor*
           default-unit-lens-updater  default-unit-lens-setter
-          =>canonical  =>view-only-lens  =>hash-key!  =>hash-key*!)
+          =>car  =>canonical  =>view-only-lens
+          =>hash-key!  =>hash-key*!
+          )
     (only (gypsum pretty) pretty print bracketed line-break qstr)
     (only (gypsum lens vector) mutable-vector-type?)
-    (only (gypsum cursor)
-          new-cursor  cursor-ref  cursor-step!
-          cursor-end?  cursor-type?
-          cursor-collect-list  new-cursor-if-iterable)
+    (only (gypsum lexer) source-file-location-type?)
+    (only (gypsum elisp-eval parser)
+          elisp-quote-scheme-type?
+          write-parser-location
+          )
     (only (chibi match) match)
     )
 
   (export
-   ;; Quoting Scheme literals
-   elisp-quote-scheme-type?  elisp-quote-scheme  elisp-unquote-scheme
-
    ;; Converting data between Scheme and Elisp
    scheme->elisp  elisp->scheme  elisp-null?
    pure  pure*  pure*-typed  pure*-numbers  pure-raw
@@ -58,6 +58,7 @@
    ;; Emacs Lisp constant symbols
    nil t
 
+   ;;----------------------------------------
    ;; Environment objects
    new-empty-environment
    elisp-environment-type?
@@ -69,7 +70,7 @@
    env-intern!    ;; implements the ELisp `intern` function
    env-setq-bind! ;; implements the ELisp `setq` macro
    env-alist-defines!
-   env-reset-stack
+   env-reset-stack!
    print-stack-frames
    print-trace
    show-trace ;; prints both trace and stack-frames to standard output port
@@ -85,33 +86,67 @@
    =>env-lexical-mode?!
    =>env-stack-trace*!
 
+   ;;----------------------------------------
    ;; Symbol objects
    sym-type?  sym-name  new-symbol  new-symbol-value
    =>sym-value*!  =>sym-function*!  =>sym-plist*!
    =>sym-name  =>sym-value!  =>sym-function!  =>sym-plist!
    ensure-string  symbol/string?  any-symbol?
+   sym-name-equal?
 
+   ;;----------------------------------------
    ;; Function objects
    lambda-type?  new-lambda  lambda-copy-into!
-   =>lambda-kind!  =>lambda-args!  =>lambda-optargs!  =>lambda-rest!
-   =>lambda-docstring!  =>lambda-declares!  =>lambda-lexenv!  =>lambda-body!
+   =>lambda-kind!  =>lambda-args!
+   =>lambda-optargs!  =>lambda-rest!
+   =>lambda-docstring!  =>lambda-declares!
+   =>lambda-lexenv!  =>lambda-body!
    =>lambda-declares*!  =>lambda-interactive*!
-   =>lambda-body*!  =>lambda-kind*!  =>lambda-docstring*!
+   =>lambda-body*!  =>lambda-kind*!
+   =>lambda-docstring*!  =>lambda-location*!
 
+   ;;----------------------------------------
    ;; Macro objects
-   make<macro>  macro-type?  macro-procedure  elisp-void-macro
+   make<macro>  macro-type?
+   macro-procedure  elisp-void-macro
    make<syntax> syntax-type? syntax-eval
 
+   ;;----------------------------------------
    ;; Error objects
    raise-error-impl*  eval-raise  eval-error
-   elisp-eval-error-type?  =>elisp-eval-error-message  =>elisp-eval-error-irritants
-   print-trace  print-stack-frames
+   make<elisp-eval-error>
+   elisp-eval-error-type?
+   elisp-eval-error-equal?
+   =>elisp-eval-error-message
+   =>elisp-eval-error-irritants
+   =>elisp-eval-error-stack-trace
 
+   ;;----------------------------------------
    ;; Stack frames
-   new-elstkfrm  stack-lookup
-   =>elstkfrm-lexstack-key*!  =>elstkfrm-dynstack-key*!  =>elstkfrm*!
-   =>elstkfrm-lexstack*!   =>elstkfrm-dynstack*!
-   elstkfrm-from-args  elstkfrm-sym-intern!
+   new-elstkfrm  stack-lookup =>elstkfrm*!
+   =>elstkfrm-lexstack-key*!
+   =>elstkfrm-dynstack-key*!
+   =>elstkfrm-lexstack*!
+   =>elstkfrm-dynstack*!
+   elstkfrm-from-args
+   elstkfrm-sym-intern!
+
+   ;;----------------------------------------
+   ;; Stack traces
+   new-stack-trace-frame  stack-trace-frame-type?
+   =>stack-trace-location*!  =>stack-trace-symbol*!
+   =>stack-trace-func!  =>stack-trace-frames*!
+   =>env-trace-location*!  =>env-trace-symbol*!
+   =>env-trace-func*!  =>env-trace-frames*!
+   write-stack-trace-frame
+   print-stack-frame  print-all-stack-frames
+
+   ;; A whole stack trace
+   env-get-stack-trace
+   elisp-stack-trace-type?
+   elisp-stack-trace->vector
+   elisp-stack-trace-ref
+   write-elisp-stack-trace
    )
 
   (include "environment.scm")
