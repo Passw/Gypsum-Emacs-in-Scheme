@@ -23,7 +23,6 @@ The wiki documents several of the important libraries in this source
 code.
 
 - [`(gypsum pretty)`](../../../wiki/PrettyPrinter.md): a pretty printer
-- [`(gypsum cursor)`](../../../wiki/Cursor.md): an iterator-like object
 - [`(gypsum elisp-eval environment)`](../../../wiki/ElispEnvironments.md): the environments in which Emacs Lisp code evaluates
 
 ## How to help contribute code
@@ -31,8 +30,9 @@ code.
 There are many tasks to complete, many of which are fairly simple to
 do even for people with not a lot of experience using the Scheme
 programming lanugage, as long as you can get the code in this project
-to run on your Scheme implementation.
-(See the ["How To Build"](#how-to-build) section below.)
+to run on your Scheme implementation.  See the
+["How to build"](#how-to-build), ["How to run"](#how-to-run), and
+["How to hack"](#how-to-hack) sections below.
 
 As of right now, the most important long-term issue to work on is
 [#30 "*Get Emacs Regression Tests (ERT) to evaluate on the `cl-lib.el`*"](https://codeberg.org/ramin_hal9001/gypsum/issues/30).
@@ -198,12 +198,18 @@ $1 = ("/home/user/work-src/gypsum"
 
 ## How to hack
 
-Start a Scheme REPL as described above, but before running the main
-program, run the test suite:
+Start a Scheme REPL as described above, but instead of running the
+main program or the `./elisp-tests.scm` program, instead run the test
+suite:
 
 ```scheme
 (load "./run-tests.scm")
 ```
+
+Unlike the `./elisp-tests.scm` program, the `./run-tests.scm` ensures
+the exported symbols in each library all behave as expected. Before
+you change anything, make sure you keep a log of which tests have
+passed and which have failed, if any.
 
 Whenever you make a change to the source code of a Scheme library, be
 sure to run the tests for that library. The tests in `./run-tests.scm`
