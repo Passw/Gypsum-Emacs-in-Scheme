@@ -38,28 +38,13 @@
           *unicode-max-code-point*
           =>lexer-filepath*!
           )
-    )
-  ;; -------- Hash Tables --------
-  (cond-expand
-    ((or guile gambit)
-     (import
-       (only (srfi 69)
-             make-hash-table
-             hash-table-ref
-             hash-table-set!
-             hash-table-ref/default
-             )
-       ))
-    (mit)
-    (else
-     (import
-       (only (srfi 125)
-             make-hash-table
-             hash-table-ref
-             hash-table-set!
-             hash-table-ref/default
-             )
-       )))
+    (only (gypsum hash-table)
+          make-hash-table
+          hash-table-ref
+          hash-table-set!
+          hash-table-ref/default
+          default-hash
+          ))
 
   (export
    ;;----------------

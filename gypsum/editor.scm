@@ -840,7 +840,8 @@ To disable this, set option 'delete-active-region' to nil."
   (record-unit-lens editor-view set!editor-view '=>editor-view))
 
 (define (new-table size)
-  (make-hash-table equal? #:weak #f size))
+  ;; TODO: make use of the `SIZE` parameter
+  (make-hash-table equal?))
 
 (define (editor-get-next-obj-id editor)
   (let ((i (editor-obj-counter editor)))

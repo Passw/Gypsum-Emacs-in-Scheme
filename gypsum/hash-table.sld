@@ -10,14 +10,39 @@
   ;; that run this code.
 
   ;; IMPORTS
-  (import (scheme base))
+  (import
+    (scheme base)
+    )
   (cond-expand
-    ((or guile gambit) (import (srfi 69)))
+    ((or guile gambit)
+     (import (srfi  69))
+     (begin
+       (define default-hash hash)
+       ))
     ((or stklos chibi) (import (srfi 125)))
+    (mit
+     (import (srfi 125))
+     (import (only (srfi 128) default-hash))
+     )
+    (gauche
+     (import
+       (scheme case-lambda)
+       (only (srfi 69) alist->hash-table)
+       (except (srfi 125) alist->hash-table)
+       (only (srfi 128) default-hash)
+       )
+     )
     (else
      (cond-expand
-       ((library (srfi 125)) (import (srfi 125))))
-     ))
+       ((library (srfi 125))
+        (import (srfi 125))
+        ))
+     (cond-expand
+       ((library (srfi 128))
+        (import (only (srfi 128) default-hash))
+        ))
+     )
+    )
 
   ;; EXPORTS
   (export
@@ -35,7 +60,7 @@
    hash-table-walk
    hash-table?
    make-hash-table
-   hash  string-hash
+   default-hash  string-hash
    )
 
   (begin

@@ -3,7 +3,7 @@
   (scheme cxr)
   (gypsum lens)
   (only (gypsum hash-table)
-        hash-table?  hash
+        hash-table?  default-hash  string-hash
         hash-table-set!
         make-hash-table
         hash-table-size
@@ -43,10 +43,10 @@
 (test-equal 1 (lens-unit-count =>list3-first))
 (test-equal 9 (lens-unit-count (lens =>list3-end =>list3-end =>list3-third)))
 
-(define tt (make-hash-table equal?))
+(define tt (make-hash-table equal? default-hash))
 (define (=>tt-key key) (=>hash-key*! key))
 
-(define h (alist->hash-table '(("one" . 1) ("zero" . 0))  equal?))
+(define h (alist->hash-table '(("one" . 1) ("zero" . 0))  string=? string-hash))
 
 (define h2
   (alist->hash-table
@@ -57,12 +57,12 @@
            ,(alist->hash-table
              '(("four" . 4)
                ("five" . 5))
-             equal?
+             string=? string-hash
              ))
           ("three" . 3))
-        equal?
+        string=? string-hash
         )))
-   equal?))
+   string=? string-hash))
 
 (test-equal 0 (view h (=>tt-key "zero")))
 (test-equal 1 (view h (=>tt-key "one")))
@@ -133,8 +133,16 @@
 (test-equal 5 (view h2 "zero" "two" "five"))
 
 (lens-set
- (vector "zero" "one" (lens-set "how are you" (make-hash-table equal?) "hello") "three")
- h2 "zero" "three")
+ (vector
+  "zero" "one"
+  (lens-set
+   "how are you" (make-hash-table string=? string-hash) "hello"
+   )
+  "three"
+  )
+ h2 "zero" "three"
+ )
+
 (test-equal "one" (view h2 "zero" "three" 1))
 (test-equal "how are you" (view h2 "zero" "three" 2 "hello"))
 
@@ -163,16 +171,18 @@
             (alist->hash-table ;; at index 0
              `(("C" . "go-up")
                ("D" . "go-down"))
-             equal?)
+             string=? string-hash
+             )
             (alist->hash-table ;; at index 1
              '(("E" . "turn-around")
                ("F" . "jump"))
-             equal?)
+             string=? string-hash
+             )
             #f ;; at index 2
             )))
-        equal?
+        string=? string-hash
         )))
-   equal?
+   string=? string-hash
    ))
 
 (test-equal 0 (view ht "zero"))
@@ -340,9 +350,7 @@
         (vector
           #f "Hydrogen" "Helium" "Lithium" "Berylium" "Boron"
           "Carbon" "Nitrogen" "Oxygen" "Flourine" "Neon")))
-      equal?
       )))
-   equal?
    ))
 
 (test-equal "Hydrogen"
@@ -504,7 +512,7 @@
 
 (test-equal '(("" . "Hello"))
   (hash-table->alist
-   (lens-set "Hello" (make-hash-table equal?) =>initial)))
+   (lens-set "Hello" (make-hash-table string=? string-hash) =>initial)))
 
 (test-equal '("Hello")
   (lens-set "Hello" '() =>initial))

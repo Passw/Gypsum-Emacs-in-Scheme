@@ -7,6 +7,7 @@
         pretty print qstr repeat join-by bracketed
         indent-by newline-indent line-break)
   (gypsum test)
+  (gypsum hash-table)
   )
 
 (cond-expand

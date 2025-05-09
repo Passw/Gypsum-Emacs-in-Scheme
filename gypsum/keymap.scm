@@ -174,9 +174,17 @@
             bin-hash-table
             (make<bin-hash-table>
              size
-             (alist->hash-table
-              (hash-table->alist ht)
-              eqv? char-table-hash #:weak #f size))))))
+             (cond-expand
+               (gauche
+                (alist->hash-table
+                 (hash-table->alist ht)
+                 equal-comparator
+                 ))
+               (else
+                (alist->hash-table
+                 ;; TODO: make use of the `SIZE` parameter
+                 (hash-table->alist ht)
+                 eqv? char-table-hash))))))))
 
 (define (char-table-rebalance! kt)
   ;; It is expected that there will be a lot of character maps loaded
@@ -212,7 +220,15 @@
   ;; for use within the <BIN-HASH-TABLE-TYPE> for either of the forks
   ;; of a <CHAR-TABLE-TYPE>, with the given number of bins.
   ;;------------------------------------------------------------------
-  (make-hash-table eqv? char-table-hash #:weak #f size))
+  ;; TODO: make use of the `SIZE` parameter
+  (cond-expand
+    (gauche
+     (make-hash-table equal-comparator)
+     )
+    (else
+     (make-hash-table eqv? char-table-hash)
+     ))
+  )
 
 (define (=>char-table-char do-rebalance char)
   ;; Define a lens that selects an entry by the key CHAR from within a
@@ -352,38 +368,56 @@
   ;; Return just the head of a keymap index
   (make<keymap-index> (mod-index kmix) (char-index kmix) #f))
 
+;;----------------------------------------------------------------------
+;; Unfortunately, the `ALIST->HASH-TABLE` procedure is one of those APIs
+;; that none of the Scheme implementations seem to be able to agree on.
+;; There are a few `COND-EXPAND` statments here to take care of this
+;; diversity of opinion.
+
+(define (sym-lookup-hash-func sym len)
+  ;; The values of the `SYM-LOOKUP-TABLE` table never change, so I
+  ;; hand-crafted a perfect hash function for a table of 14 bins.
+  (modulo
+   (string-fold          ; the hash performs a sum over the characters
+    (lambda (c sum)
+      (+ (* 6 sum)        ; the 6 was the optimal value for this table
+         (- (char->integer c) ; offset character to #\A before summing
+            (char->integer #\A))))
+    0
+    (let ((key (symbol->string sym)))
+      ;; Cut the key to 6 characters -- the smallest number that
+      ;; cannot possibly match any strings in the table -- we want
+      ;; keys that are too long to always be rejected.
+      (substring key 0 (min 6 (string-length key)))))
+   len)
+  )
+
+(define sym-lookup-table-alist
+  `((C       . ,ctrl-bit)
+    (ctrl    . ,ctrl-bit)
+    (control . ,ctrl-bit)
+    (M       . ,meta-bit)
+    (meta    . ,meta-bit)
+    (S       . ,super-bit)
+    (super   . ,super-bit)
+    (H       . ,hyper-bit)
+    (hyper   . ,hyper-bit)
+    (A       . ,alt-bit)
+    (alt     . ,alt-bit)))
+
 (define sym-lookup-table
-  ;; The values of this table never change, so I hand-crafted a
-  ;; perfect hash function for a table of 14 bins.
-  (alist->hash-table
-   `((C       . ,ctrl-bit)
-     (ctrl    . ,ctrl-bit)
-     (control . ,ctrl-bit)
-     (M       . ,meta-bit)
-     (meta    . ,meta-bit)
-     (S       . ,super-bit)
-     (super   . ,super-bit)
-     (H       . ,hyper-bit)
-     (hyper   . ,hyper-bit)
-     (A       . ,alt-bit)
-     (alt     . ,alt-bit))
-   eqv?
-   (lambda (sym len)
-     (modulo
-      (string-fold ; the hash performs a sum over the characters
-       (lambda (c sum)
-         (+ (* 6 sum) ; the 6 was the optimal value for this table
-            (- (char->integer c) ; offset character to #\A before summing
-               (char->integer #\A))))
-       0
-       (let ((key (symbol->string sym)))
-         ;; Cut the key to 6 characters -- the smallest number that
-         ;; cannot possibly match any strings in the table -- we want
-         ;; keys that are too long to always be rejected.
-         (substring key 0 (min 6 (string-length key)))))
-      len))
-   #:weak #f
-   14))
+  (cond-expand
+    (gauche
+     (alist->hash-table
+      sym-lookup-table-alist
+      (comparator-comparison-procedure eq-comparator)
+      (comparator-hash-function eq-comparator)
+      ))
+    (else
+     ;; TODO: the lookup table should have a vector of size 14
+     (alist->hash-table sym-lookup-table-alist eqv? sym-lookup-hash-func)
+     ))
+  )
 
 (define (modifier->integer sym)
   ;; Lookup an integer value for a modifier symbol, return #f if the
@@ -718,11 +752,16 @@ The ~PROC~ argument may be a procedure, or it may be another
   ;; this because the use of super, hyper and alt modifiers are so
   ;; unusual in normal Emacs usage that I expect these upper 3 bins
   ;; will almost never be used.
-  (make-hash-table
-   eqv?
-   (lambda (x size) (if (> x 3) (+ 4 (modulo x (- size 4))) x))
-   #:weak #f 7
-   ))
+  (cond-expand
+    (gauche
+     (make-hash-table eqv-comparator)
+     )
+    (else
+     (make-hash-table
+      eqv?
+      (lambda (x size) (if (> x 3) (+ 4 (modulo x (- size 4))) x))
+      ;; TODO: the size of this table should be 7
+      ))))
 
 
 (define (=>keymap-layer-mod-table-key? key)

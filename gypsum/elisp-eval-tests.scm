@@ -30,19 +30,12 @@
         list->elisp-form  elisp-form->list
         elisp-form-equal?  write-elisp-form
         )
+  (only (gypsum hash-table)
+        hash-table-size
+        hash-table-ref/default
+        alist->hash-table
+        )
   )
-(cond-expand
-  ((or guile gambit stklos)
-   (import
-     (only (srfi 69)
-           hash-table-size
-           hash-table-ref/default
-           alist->hash-table))
-   )
-  ((mit))
-  (else
-   (import (srfi 125))))
-
 
 (test-begin "gypsum_elisp_eval_tests")
 

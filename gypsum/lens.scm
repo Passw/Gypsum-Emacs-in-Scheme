@@ -935,7 +935,7 @@
   ;; used, but you can parameterize this API to construct hash tables
   ;; with other arguemnts, for example a different number of buckets
   ;; or the weakness of references.
-  (make-parameter (lambda () (make-hash-table equal?))))
+  (make-parameter (lambda () (make-hash-table equal? default-hash))))
 
 
 (define (=>hash-key! key)

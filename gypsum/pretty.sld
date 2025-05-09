@@ -39,8 +39,6 @@
     (scheme base)
     (scheme write)
     (scheme case-lambda)
-    (only (srfi 64)
-          test-begin test-end test-equal)
     (only (gypsum lens)
           record-unit-lens update)
     (only (gypsum lens vector)

@@ -29,7 +29,7 @@
 (define *bin-hash-table-init-size* (make-parameter 11))
 
 (define *default-key-hash*
-  (make-parameter (lambda (key size) (modulo (hash key) size))))
+  (make-parameter (lambda (key size) (modulo (default-hash key) size))))
 
 (define (bin-hash-table-size bht)
   (hash-table-size (get-bin-hash-table-hash bht)))
@@ -37,12 +37,13 @@
 (define *default-make-hash-table*
   (make-parameter
    (lambda (size)
+     ;; TODO: make use of the `SIZE` parameter.
      (cond-expand
-       (guile
-        (make-hash-table equal? (*default-key-hash*) #:weak #f size))
+       (gauche
+        (make-hash-table equal-comparator))
        (else
-        (make-hash-table equal? (*default-key-hash*)))
-       ))))
+        (make-hash-table equal? (*default-key-hash*))))
+     )))
 
 (define empty-bin-hash-table 
   ;; This lazy procedure defines a new constructor for a hash table

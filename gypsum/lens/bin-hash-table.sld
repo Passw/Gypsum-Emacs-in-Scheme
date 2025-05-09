@@ -12,12 +12,16 @@
            pretty print bracketed newline-indent line-break)
     (only (gypsum hash-table) ; Standard hash tables
           hash-table-empty?
-          hash make-hash-table alist->hash-table hash-table->alist
+          default-hash make-hash-table alist->hash-table hash-table->alist
           hash-table-size hash-table-copy hash-table-walk
           hash-table-update!/default hash-table-set!
           hash-table-fold hash-table?
           )
     )
+  (cond-expand
+    (gauche
+     (import (only (srfi 114) equal-comparator))
+     ))
   (cond-expand
     (guile-3
      (import

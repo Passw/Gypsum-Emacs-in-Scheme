@@ -4,12 +4,7 @@
   (srfi 69)
   (gypsum cursor)
   (only (gypsum lens) lens-set view)
-  )
-(cond-expand
-  ((or guile gambit stklos)
-   (import
-     (only (srfi 69) alist->hash-table)))
-  (mit)
+  (only (gypsum hash-table) alist->hash-table)
   )
 
 (test-begin "gypsum_cursor")

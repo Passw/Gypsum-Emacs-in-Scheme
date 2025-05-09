@@ -5,7 +5,7 @@
     (scheme case-lambda)
     (only (gypsum vector) vector-fold)
     (only (gypsum hash-table)
-          hash-table-empty?  hash-table?
+          hash-table-empty?  hash-table?  default-hash
           make-hash-table   alist->hash-table   hash-table->alist
           hash-table-size   hash-table-set!   hash-table-delete!
           hash-table-fold   hash-table-ref/default

@@ -15,19 +15,13 @@
         mutable-vector-length
         mutable-vector-append!)
   (prefix (gypsum editor-impl) *impl/)
+  (only (gypsum hash-table)
+        hash-table-size
+        hash-table-ref/default
+        alist->hash-table
+        hash-table->alist
+        )
   )
-(cond-expand
-  ((or guile gambit stklos)
-   (import
-     (only (srfi 69)
-           hash-table-size
-           hash-table-ref/default
-           alist->hash-table
-           hash-table->alist))
-   )
-  ((mit))
-  (else
-   (import (srfi 125))))
 
 (test-begin "gypsum_elisp_eval_environment_tests")
 
@@ -119,7 +113,7 @@
               (loop (cdr assocs))
               (error
                "the \"elstkfrm\" did not have expected value at key"
-               #:key key #:expected expected #:actual actual
+               'key key 'expected expected 'actual actual
                ))))
        )))))
 
