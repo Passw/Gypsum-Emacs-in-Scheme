@@ -120,6 +120,7 @@
    =>elisp-eval-error-message
    =>elisp-eval-error-irritants
    =>elisp-eval-error-stack-trace
+   write-elisp-eval-error
 
    ;;----------------------------------------
    ;; Stack frames

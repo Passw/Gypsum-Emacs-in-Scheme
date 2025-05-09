@@ -81,7 +81,7 @@
           =>elisp-eval-error-irritants
           =>elisp-eval-error-stack-trace
           eval-raise  eval-error
-          env-get-stack-trace   write-elisp-stack-trace
+          env-get-stack-trace  write-elisp-eval-error
           print-stack-frame  print-all-stack-frames
           )
     (only (gypsum elisp-eval format) format format-to-port)
@@ -146,8 +146,10 @@
    make<macro>  macro-procedure
 
    ;; Error handling
-   elisp-eval-error-type?  =>elisp-eval-error-message  =>elisp-eval-error-irritants
-   new-elisp-raise-impl  new-elisp-error-handler  error-handler-impl*
+   elisp-eval-error-type?
+   =>elisp-eval-error-message
+   =>elisp-eval-error-irritants
+   new-elisp-raise-impl
    elisp-show-stack-frames
    )
 

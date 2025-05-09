@@ -78,7 +78,7 @@
 
 
 (define (new-elisp-raise-impl env halt-eval)
-  ;; This is a constructs for a procedure that raises an exception
+  ;; This is a constructor for a procedure that raises an exception
   ;; when an exception occurs in the Emacs Lisp evaluator. The
   ;; procedure returned by this constructor should be used to
   ;; parameterize the `RAISE-ERROR-IMPL*` API from the
@@ -96,100 +96,49 @@
   ;; Use this constructor when you want to modify the behavior of the
   ;; Emacs Lisp evaluator with regard to how it throws exceptions.
   ;;------------------------------------------------------------------
-  (lambda (err-obj)
-    (cond
-     ((elisp-eval-error-type? err-obj)
-      (lens-set
-       (env-get-stack-trace env)
-       err-obj =>elisp-eval-error-stack-trace
-       )
-      (halt-eval err-obj)
-      )
-     (else (halt-eval err-obj))
-     )))
+  (let ((env (or env (*the-environment*))))
+    (lambda (err-obj)
+      (cond
+       ((elisp-eval-error-type? err-obj)
+        (lens-set
+         (env-get-stack-trace env)
+         err-obj =>elisp-eval-error-stack-trace
+         )
+        (halt-eval err-obj)
+        )
+       (else
+        (halt-eval err-obj)
+        )))))
 
 (define new-elisp-error-handler
-  ;; Construct an error handler from a continuation callback `HALT`.
-  ;; This is a curried procedure that constructs and returns a new
-  ;; procedure that takes exactly one argument, an error object, so it
-  ;; can be used as an error handling procedure for the Scheme
-  ;; `WITH-EXCEPTION-HANDLER` procedure, or can be used to
-  ;; parameterize `ERROR-HANDLER-IMPL*`.
-  ;;
-  ;; The error handling procedure returned by this function has the
-  ;; side effect of printing the stack trace from the Emacs Lisp
-  ;; interpreter to the `CURRENT-OUTPUT-PORT` (or a given port if
-  ;; applied as an argument to `NEW-ELISP-ERROR-HANDLER`) and then
-  ;; returns it the error via the halting procedure parameterized by
-  ;; `RAISE-ERROR-IMPL*`. If the applied error object is not of type
-  ;; `ELISP-EVAL-ERROR-TYPE?`, it is applied to the halting procedure
-  ;; without printing an Emacs Lisp stack trace, if the halting
-  ;; procedure re-raises the exception it may cause your Scheme
-  ;; implementation to print a Scheme stack trace.
-  ;;------------------------------------------------------------------
   (case-lambda
     ((env halt-eval)
      (new-elisp-error-handler env halt-eval (current-output-port))
      )
     ((env halt-eval port)
      (lambda (err-obj)
-       (define (write-irritants irrs)
-         (let loop ((irrs irrs) (i 0))
-           (cond
-            ((pair? irrs)
-             (write-string (number->string i) port)
-             (write-char #\space port)
-             (write (car irrs) port)
-             (newline port)
-             (loop (cdr irrs) (+ 1 i))
-             )
-            (else #f)
-            )))
-       (cond
-        ((elisp-eval-error-type? err-obj)
-         (write-elisp-stack-trace
-          (view err-obj =>elisp-eval-error-stack-trace)
-          port)
-         (newline port)
-         (write-string
-          (view err-obj =>elisp-eval-error-message)
-          port)
-         (newline port)
-         (write-irritants (view err-obj =>elisp-eval-error-irritants)))
-        ((error-object? err-obj)
-         (write-elisp-stack-trace (env-get-stack-trace env) port)
-         (newline port)
-         (let ((msg (error-object-message err-obj)))
-           (cond
-            ((string? msg)
-             (write-string msg port)
-             (newline port)
-             )
-            (else
-             (display "Error: " port)
-             (write msg port)
-             (newline port)
-             )))
-         (write-irritants (error-object-irritants err-obj))
-         )
-        (else #f)
-        )
+       (when (elisp-eval-error-type? err-obj)
+         (update
+           (lambda (tr) (or tr (env-get-stack-trace env)))
+           err-obj =>elisp-eval-error-stack-trace
+           ))
+       (write-elisp-eval-error err-obj env port)
        (env-reset-stack! env)
-       (display "----------------------------------------\n" port)
        (halt-eval err-obj)
        ))))
 
-(define error-handler-impl*
-  ;; A parameter which must hold an exception handling procedure, this
-  ;; handler is used by `ELISP-EVAL!` to handle exceptions.
-  ;;------------------------------------------------------------------
-  (make-parameter
-   (new-elisp-error-handler
-    (*the-environment*)
-    (lambda (a) a)
-    (current-output-port)
-    )))
 
+(define (%elisp-eval! expr env)
+  (let*((run
+         (lambda ()
+           (eval-form expr
+            (and (elisp-form-type? expr)
+                 (elisp-form-start-loc expr)))
+           ))
+        )
+    (if (not env) (run)
+        (parameterize ((*the-environment* env)) (run))
+        )))
 
 (define elisp-eval!
   ;; Evaluate an Emacs Lisp expression that has already been parsed
@@ -209,31 +158,13 @@
     ((expr env)
      (call/cc
       (lambda (halt-eval)
-        (let*((raise-impl
-               (new-elisp-raise-impl
-                (or env (*the-environment*))
-                halt-eval))
-              (handler
-               (if env
-                   (new-elisp-error-handler env halt-eval)
-                   (error-handler-impl*)))
-              (run
-               (lambda ()
-                 (parameterize ((raise-error-impl* raise-impl))
-                   (eval-form expr
-                    (and (elisp-form-type? expr)
-                         (elisp-form-start-loc expr)))
-                   )))
+        (let ((handler (new-elisp-error-handler env halt-eval))
+              (raise-impl (new-elisp-raise-impl env halt-eval))
               )
-          (with-exception-handler handler
-            (lambda ()
-              (if (not env) (run)
-                  (parameterize
-                      ((*the-environment* env)
-                       (error-handler-impl* handler)
-                       )
-                    (run)
-                    ))))))))))
+          (parameterize ((raise-error-impl* raise-impl))
+            (with-exception-handler handler
+              (lambda () (%elisp-eval! expr env))
+              ))))))))
 
 
 (define (eval-iterate-forms env port use-form)
@@ -259,16 +190,20 @@
     (define (loop result)
       (let ((form (elisp-read parst)))
         (cond
-         ((eof-object? form) result)
-         ((eq? form #t) (loop #t))
-         ((eq? form #f) result)
+         ((eq? form #t) (loop result))
+         ((or (not form) (eof-object? form)) result)
+         ((elisp-form-type? form)
+          (loop
+           (env-trace!
+            (elisp-form-start-loc form) #t elisp-load! env
+            (lambda () (use-form form))
+            )))
          (else (loop (use-form form)))
          )))
     (cond
      (close-on-end
-      (call-with-port port
-        (lambda (port) (loop #t))
-        ))
+      (call-with-port port (lambda (port) (loop #t)))
+      )
      (else (loop #t))
      )))
 
@@ -284,8 +219,8 @@
            )
        (define (setq-load-file-name val)
          (lens-set val env
-          (=>env-obarray-key! name)
-          (=>sym-value! name))
+                   (=>env-obarray-key! name)
+                   (=>sym-value! name))
          )
        (call-with-port port
          (lambda (port)
@@ -297,21 +232,32 @@
                     ))
                  (old-dialect (view env =>env-lexical-mode?!))
                  (dialect (select-elisp-dialect! parst))
+                 (env
+                  (lens-set
+                   (case dialect
+                     ((dynamic-binding) #f)
+                     (else #t))
+                   env =>env-lexical-mode?!
+                   ))
+                 (result
+                  (call/cc
+                   (lambda (halt-eval)
+                     (let ((handler (new-elisp-error-handler env halt-eval))
+                           (raise-impl (new-elisp-raise-impl env halt-eval))
+                           )
+                       (parameterize ((raise-error-impl* raise-impl))
+                         (with-exception-handler handler
+                           (lambda ()
+                             (eval-iterate-forms env parst
+                              (lambda (form)
+                                (%elisp-eval! form env)
+                                )))))))))
                  )
-             (lens-set
-              (case dialect
-                ((dynamic-binding) #f)
-                (else #t))
-              env =>env-lexical-mode?!
-              )
-             (let ((result
-                    (eval-iterate-forms env parst
-                     (lambda (form) (elisp-eval! form env)))))
-               (exec-run-hooks 'after-load-functions (list filepath))
-               (setq-load-file-name nil)
-               (lens-set old-dialect env =>env-lexical-mode?!)
-               result
-               ))))))))
+             (exec-run-hooks 'after-load-functions (list filepath))
+             (setq-load-file-name nil)
+             (lens-set old-dialect env =>env-lexical-mode?!)
+             result
+             )))))))
 
 
 (define subfeature-key "subfeature")

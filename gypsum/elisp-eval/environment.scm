@@ -286,6 +286,63 @@
   (eval-raise
    (make<elisp-eval-error> message irritants #f)))
 
+(define write-elisp-eval-error
+  (case-lambda
+    ((err-obj) (write-elisp-eval-error err-obj #f (current-output-port)))
+    ((err-obj env/port)
+     (cond
+      ((port? env/port)
+       (write-elisp-eval-error err-obj #f env/port)
+       )
+      (else
+       (write-elisp-eval-error err-obj env/port (current-output-port))
+       )))
+    ((err-obj env port)
+     (define (write-irritants irrs)
+       (let loop ((irrs irrs) (i 0))
+         (cond
+          ((pair? irrs)
+           (write-string (number->string i) port)
+           (write-char #\space port)
+           (write (car irrs) port)
+           (newline port)
+           (loop (cdr irrs) (+ 1 i))
+           )
+          (else #f)
+          )))
+     (cond
+      ((elisp-eval-error-type? err-obj)
+       (write-elisp-stack-trace
+        (view err-obj =>elisp-eval-error-stack-trace)
+        port)
+       (newline port)
+       (write-string
+        (view err-obj =>elisp-eval-error-message)
+        port)
+       (newline port)
+       (write-irritants (view err-obj =>elisp-eval-error-irritants))
+       )
+      ((error-object? err-obj)
+       (when env
+         (write-elisp-stack-trace (env-get-stack-trace env) port)
+         )
+       (newline port)
+       (let ((msg (error-object-message err-obj)))
+         (cond
+          ((string? msg)
+           (write-string msg port)
+           (newline port)
+           )
+          (else
+           (display "Error: " port)
+           (write msg port)
+           (newline port)
+           )))
+       (write-irritants (error-object-irritants err-obj))
+       )
+      (else #f))
+     )))
+
 ;;--------------------------------------------------------------------
 ;; The stack
 
@@ -555,6 +612,8 @@
            )
        (cond
         (len
+         (display ";;---------------------- stack trace -----------------------" port)
+         (newline port)
          (let loop ((i 0) (pfxspace 1))
            (cond
             ((< i len)
@@ -614,8 +673,10 @@
   (record-unit-lens env-trace set!env-trace '=>env-stack-trace*!))
 
 
-(define (env-push-trace! st sym)
-  (update (lambda (stack) (cons sym stack)) st =>env-stack-trace*!))
+(define (env-push-trace! st loc sym func)
+  (update
+   (lambda (stack) (cons (new-stack-trace-frame loc sym func) stack))
+   st =>env-stack-trace*!))
 
 
 (define (env-pop-trace! st)
@@ -629,7 +690,7 @@
   ;; a 5th argument, the Emacs Lisp environment object, defaulting to
   ;; the content of `*THE-ENVIRONMENT*`.
   ;;------------------------------------------------------------------
-  (env-push-trace! st (new-stack-trace-frame loc sym func))
+  (env-push-trace! st loc sym func)
   (let ((result (run)))
     (env-pop-trace! st)
     result
