@@ -1376,7 +1376,7 @@
   ;; TODO: check if `SYM` satisfies `SYMBOL?` or `SYM-TYPE?` and act accordingly.
   (update-on-symbol st sym
    (lambda (obj)
-     (values (lens-set val obj (=>sym-value! (ensure-string sym))) val))))
+     (values (lens-set val obj (=>sym-value! sym)) val))))
 
 (define (eval-get st sym prop)
   (view-on-symbol st sym
