@@ -126,23 +126,11 @@ buffer of the current window."))
 
 ;; -------------------------------------------------------------------------------------------------
 
-(define-record-type <cell-factory-type>
-  (make<cell-factory-type> make-cell set!cell-value)
-  is<cell-factory-type>?
-  (make-cell       factory-make-cell)
-  (set!cell-value  factory-set!cell-value))
-
-(define cell-factory*
-  (make-parameter
-   (make<cell-factory-type>
-    (lambda _ #f)
-    (lambda _ #f))))
-
 ;; (define init-cell-actor
 ;;   ;; Use this function to parameterize cell-factory* so that objects
 ;;   ;; initialized by this module can construct Goblins cell actors and
 ;;   ;; keep a reference to these cells within their record data types.
-;;   (make<cell-factory-type>
+;;   (make<cell-factory>
 ;;    (case-lambda
 ;;      (() (spawn ^cell))
 ;;      ((init-value) (spawn ^cell init-value)))
@@ -154,16 +142,16 @@ buffer of the current window."))
   ;; various "new-___" object constructor functions.
   (case-lambda
     (()
-     (let ((factory (cell-factory*)))
+     (let ((factory (*impl/cell-factory*)))
        ((factory-make-cell factory))))
     ((init-value)
-     (let ((factory (cell-factory*)))
+     (let ((factory (*impl/cell-factory*)))
        ((factory-make-cell factory) init-value)))))
 
 (define (set!cell-value cell value)
   ;; This function is not exported, it is used internally to update
   ;; cells for the various "new-___" object constructors functions.
-  (let ((factory (cell-factory*)))
+  (let ((factory (*impl/cell-factory*)))
     ((factory-set!cell-value factory) cell value)))
 
 ;; -------------------------------------------------------------------------------------------------
@@ -841,7 +829,7 @@ To disable this, set option 'delete-active-region' to nil."
 
 (define (new-table size)
   ;; TODO: make use of the `SIZE` parameter
-  (make-hash-table equal?))
+  (make-hash-table equal? default-hash))
 
 (define (editor-get-next-obj-id editor)
   (let ((i (editor-obj-counter editor)))

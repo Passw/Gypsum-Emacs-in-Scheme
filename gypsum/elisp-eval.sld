@@ -57,7 +57,6 @@
           elstkfrm-from-args   elstkfrm-sym-intern!
           *default-obarray-size*
           *elisp-input-port*  *elisp-output-port*  *elisp-error-port*
-          =>interp-cur!  =>interp-env!  =>interp-stk!
           =>env-obarray-key!   =>env-symbol!
           =>env-stack-trace*!  =>stack-trace-location*!
           =>env-lexstack*!  =>env-obarray*!  =>env-lexical-mode?!

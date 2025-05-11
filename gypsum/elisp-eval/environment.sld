@@ -79,7 +79,6 @@
    *elisp-output-port*
    *elisp-error-port*
 
-   =>interp-cur!  =>interp-env!  =>interp-stk!
    =>env-obarray-key!
    =>env-lexstack*!
    =>env-obarray*!

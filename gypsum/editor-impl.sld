@@ -16,14 +16,10 @@
     )
 
   (export
-   is-graphical-display?
    is-buffer-modified?*
-   new-frame-view*
    cell-factory*
    new-buffer-view*
    delete-char*
-   get-buffer-env*
-   is-buffer-changed?*
    new-mode-line-view*
    new-echo-area-view*
    new-header-line-view*
@@ -44,7 +40,6 @@
    is-buffer-modified?*
    current-editor-closure*
    selected-frame*
-   selected-window*
    current-buffer*
    select-window*
    command-error-default-function*

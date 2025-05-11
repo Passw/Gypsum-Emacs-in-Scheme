@@ -12,15 +12,22 @@
     (only (scheme read) read)
     (only (scheme case-lambda) case-lambda)
     (only (srfi 28) format)
-    (srfi 69)
+    (only (gypsum hash-table)
+          make-hash-table  default-hash
+          )
     (only (gypsum lens)
           view record-unit-lens lens-set update =>hash-key!)
     (only (gypsum editor command)
           command-type? command-procedure
           new-command show-command apply-command)
-    (prefix (gypsum eval) gypsum:)
+    (prefix (gypsum elisp-eval) gypsum:)
     (prefix (gypsum keymap) km:)
     (prefix (gypsum editor-impl) *impl/)
+    (only (gypsum editor-impl)
+          make<cell-factory>
+          factor-make-cell
+          factory-set!cell-value
+          )
     (only (gypsum pretty)
           pretty make<pp-state>
           print line-break bracketed qstr
@@ -37,7 +44,7 @@
    ;; A quick note on naming: names delimited with asterisks,
    ;; e.g. *default-keymap* are parameter objects. Asterisk-delimited
    ;; names beginning with "impl/..." for example
-   ;; *impl/new-frame-view* are parameters that SHOULD be
+   ;; *IMPL/NEW-WINFRAME-VIEW* are parameters that SHOULD be
    ;; parameterized by the user interface backend, but are typically
    ;; parameterized with procedures that do nothing by default.
 

@@ -87,11 +87,11 @@
    "gypsum/editor/command"
    "gypsum/keymap"
    "gypsum/bit-stack"
-   "gypsum/editor-impl"
    "gypsum/elisp-eval/pretty"
    "gypsum/elisp-eval/parser"
    "gypsum/elisp-eval/environment"
    "gypsum/elisp-eval/format"
+   "gypsum/editor-impl"
    "gypsum/elisp-eval"
    "gypsum/elisp-load"))
 
