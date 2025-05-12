@@ -29,8 +29,10 @@
    "./gypsum/keymap-tests.scm"
    "./gypsum/concurrent-tests.scm"
    "./gypsum/cursor-tests.scm"
+   "./gypsum/lexer-tests.scm"
    "./gypsum/elisp-eval/environment-tests.scm"
    "./gypsum/elisp-eval/format-tests.scm"
+   "./gypsum/elisp-eval/parser-tests.scm"
    "./gypsum/elisp-eval-tests.scm"
    ))
 

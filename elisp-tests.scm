@@ -1,6 +1,7 @@
 (import
   (scheme base)
   (scheme case-lambda)
+  (scheme write)
   (only (gypsum elisp-eval environment)
         elisp-eval-error-type?
         write-elisp-eval-error

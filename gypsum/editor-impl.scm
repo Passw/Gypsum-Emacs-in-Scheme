@@ -1,4 +1,17 @@
 
+(define-record-type <cell-factory-type>
+  (make<cell-factory> make-cell set!cell-value)
+  is<cell-factory-type>?
+  (make-cell       factory-make-cell)
+  (set!cell-value  factory-set!cell-value))
+
+(define cell-factory*
+  (make-parameter
+   (make<cell-factory>
+    (lambda _ #f)
+    (lambda _ #f))))
+
+
 (define is-graphical-display?* (make-parameter #f))
 
 (define is-buffer-modified?* (make-parameter (lambda (_) #t)))

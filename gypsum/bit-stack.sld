@@ -5,7 +5,11 @@
   (import
     (scheme base)
     (scheme case-lambda)
-    (only (srfi 60) bit-set? bitwise-and bitwise-ior bitwise-xor ash))
+    (only (gypsum bitwise)
+          bit-set?
+          bitwise-and  bitwise-ior  bitwise-xor
+          arithmetic-shift
+          ))
   (export
    new-bit-stack
    bit-stack-count

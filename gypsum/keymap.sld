@@ -31,8 +31,8 @@
           bin-hash-table->alist)
     (only (gypsum editor command) command-type? command-procedure)
     (only (srfi 1) fold concatenate find)
-    (only (srfi 13) ; Strings
-          string-fold)
+    (only (gypsum string) string-fold)
+    (only (gypsum bitwise) bitwise-ior bitwise-and)
     (only (gypsum hash-table)
           hash-table-empty?
           string-hash alist->hash-table hash-table->alist
@@ -42,29 +42,24 @@
     )
 
   (cond-expand
-    (gambit
-     ;; do nothing: SRFI 60 APIs are built-in to Gambit,
-     ;; but the library (srfi 60) is not provided.
-     )
-    ((or guile (library (srfi 60)))
-     (import
-       (only (srfi 60) ; Integers as Bits
-             bitwise-ior
-             bitwise-and))
-     )
-    ((or chibi (library (srfi 151)))
-     (import
-       (only (srfi 151) ; Integers as Bits
-             bitwise-ior
-             bitwise-and))
-     )
-    )
-
-  (cond-expand
     (guile-3
      (import
        (only (srfi srfi-9 gnu) set-record-type-printer!)))
     (else))
+
+  (cond-expand
+    (gauche
+     (import
+       (only (srfi 114)
+             eq-comparator
+             eqv-comparator
+             equal-comparator
+             comparator-comparison-procedure
+             comparator-hash-function
+             ))
+     )
+    (else)
+    )
 
   (export
    char-table

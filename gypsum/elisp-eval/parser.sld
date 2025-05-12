@@ -1,8 +1,7 @@
 (define-library (gypsum elisp-eval parser)
   (import
     (scheme base)
-    (scheme write);;DEBUG
-    (scheme lazy);;old parser only
+    (scheme write)
     (scheme case-lambda)
     (only (scheme char)
           char-numeric?  char-alphabetic?  digit-value
@@ -13,7 +12,6 @@
           mutable-vector->vector
           mutable-vector-append!
           )
-    (gypsum elisp-eval lexer)
     (only (gypsum lens)
           record-unit-lens  lens  =>view-only-lens
           view  update  lens-set
@@ -40,41 +38,14 @@
           *unicode-max-code-point*
           =>lexer-filepath*!
           )
-    )
-  ;; -------- Hash Tables --------
-  (cond-expand
-    ((or guile gambit)
-     (import
-       (only (srfi 69)
-             make-hash-table
-             hash-table-ref
-             hash-table-set!
-             hash-table-ref/default
-             )
-       ))
-    (mit)
-    (else
-     (import
-       (only (srfi 125)
-             make-hash-table
-             hash-table-ref
-             hash-table-set!
-             hash-table-ref/default
-             )
-       )))
-  ;; -------- File port extensions --------
-  (cond-expand
-    (guile
-     (import
-       (only (guile)
-             port-filename
-             port-line
-             port-column
-             unread-char
-             set-source-properties!
-             source-properties
-             )
-       )))
+    (only (gypsum hash-table)
+          make-hash-table
+          hash-table-ref
+          hash-table-set!
+          hash-table-ref/default
+          default-hash
+          ))
+
   (export
    ;;----------------
    ;; The parsing API

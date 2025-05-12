@@ -52,6 +52,11 @@
      (import
        (only (guile)
              mkdir dirname getcwd opendir readdir closedir))
-     ))
+     )
+    (gauche
+     (import (file util))
+     )
+    (else)
+    )
   (include "directory.scm")
   )

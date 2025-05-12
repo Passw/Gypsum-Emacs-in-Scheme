@@ -57,7 +57,6 @@
      (define list-directory-files directory-files)))
 
   (gauche
-    (import (file util))
     (begin
       ; current-directory exported
       (define (make-directory str) (current-directory str))

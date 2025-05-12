@@ -1526,7 +1526,7 @@
     (cond
      (table (hash-table-set! table int-id value))
      (else
-      (let ((table (make-hash-table)))
+      (let ((table (make-hash-table = default-hash)))
         (set!elisp-parse-backref-dict st table)
         (hash-table-set! table int-id value)
         value

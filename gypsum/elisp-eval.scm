@@ -273,11 +273,11 @@
            (let ((feature (car features)))
              (cond
               ((symbol? feature) (check-features (cdr features)))
-              (else (eval-error "wrong type argument" feature #:expecting "symbol"))
+              (else (eval-error "wrong type argument" feature 'expecting "symbol"))
               )))
           ((null? features) #t)
           ((symbol? features) #t)
-          (else (eval-error "wrong type argument" features #:expecting "list of symbols"))
+          (else (eval-error "wrong type argument" features 'expecting "list of symbols"))
           ))
        (check-features (cons feature subfeatures))
        (let ((name (symbol->string feature)))
@@ -358,10 +358,10 @@
     ((sym filename noerror)
      (cond
       ((not (symbol? sym))
-       (eval-error "wrong type argument" sym #:expecting "symbol")
+       (eval-error "wrong type argument" sym 'expecting "symbol")
        )
       ((and filename (not (string? filename)))
-       (eval-error "wrong type argument" filename #:expecting "string")
+       (eval-error "wrong type argument" filename 'expecting "string")
        )
       (else
        (cond
@@ -445,7 +445,7 @@
           (else
            (eval-error
             "wrong type argument" hook
-            #:expecting "symbol or list"
+            'expecting "symbol or list"
             ))))
        (define (first hook-list)
          ;; First level of indirection. A hook must be a symbol that
@@ -467,7 +467,7 @@
                  (recurse result first hook-list)
                  ))
               (else
-               (eval-error "wrong type argument" hook-name #:expecting "symbol")
+               (eval-error "wrong type argument" hook-name 'expecting "symbol")
                ))
              ))
           (else #f)
@@ -478,7 +478,7 @@
         ((symbol? hook-list) (first (list hook-list)))
         (else
          (eval-error "wrong type argument" hook-list
-          #:expecting "symbol or symbol list"))
+          'expecting "symbol or symbol list"))
         )))
     ))
 
@@ -571,7 +571,7 @@
       (scheme->elisp (apply func (map elisp->scheme args))))
      ((command-type? func)
       (scheme->elisp (apply (command-procedure func) (map elisp->scheme args))))
-     (else (eval-error "wrong type argument" func #:expecting "function"))
+     (else (eval-error "wrong type argument" func 'expecting "function"))
      )))
 
 
@@ -1358,7 +1358,7 @@
      (else '())))
   (cond
    ((hash-table? plist) plist)
-   ((pair? plist) (alist->hash-table (filter plist)))
+   ((pair? plist) (alist->hash-table (filter plist) string=? string-hash))
    (else #f)
    ))
 
@@ -1376,7 +1376,7 @@
   ;; TODO: check if `SYM` satisfies `SYMBOL?` or `SYM-TYPE?` and act accordingly.
   (update-on-symbol st sym
    (lambda (obj)
-     (values (lens-set val obj (=>sym-value! (ensure-string sym))) val))))
+     (values (lens-set val obj (=>sym-value! sym)) val))))
 
 (define (eval-get st sym prop)
   (view-on-symbol st sym
@@ -1463,7 +1463,7 @@
    (lambda args
      (match args
        (('function arg) (eval-function-ref arg))
-       (any (eval-error "wrong number of arguments" "function" 'expecting 1 #:value any))
+       (any (eval-error "wrong number of arguments" "function" 'expecting 1 'value any))
        ))))
 
 
@@ -1807,7 +1807,7 @@
     ))
 
 
-(define elisp-sxhash-equal (pure 1 "sxhash-equal" hash))
+(define elisp-sxhash-equal (pure 1 "sxhash-equal" default-hash))
 
 
 (define (elisp-make-keymap . args)

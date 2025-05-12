@@ -24,7 +24,7 @@
      (else
       (eval-error
        "not enough arguments for format string"
-       fmtlen #:args-count arglen))
+       fmtlen 'args-count arglen))
      )))
 
 (define (format-to-port outp fstr . args)

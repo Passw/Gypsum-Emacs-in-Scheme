@@ -16,7 +16,7 @@
     (only (scheme write) display write)
     (only (srfi 1) assq)
     (only (gypsum editor command) command-type? command-procedure)
-    (only (gypsum hash-table) hash-table-empty? hash)
+    (only (gypsum hash-table) hash-table-empty? default-hash)
     (only (gypsum pretty) pretty print line-break)
     (only (gypsum lens)
           unit-lens  record-unit-lens  lens
@@ -57,7 +57,6 @@
           elstkfrm-from-args   elstkfrm-sym-intern!
           *default-obarray-size*
           *elisp-input-port*  *elisp-output-port*  *elisp-error-port*
-          =>interp-cur!  =>interp-env!  =>interp-stk!
           =>env-obarray-key!   =>env-symbol!
           =>env-stack-trace*!  =>stack-trace-location*!
           =>env-lexstack*!  =>env-obarray*!  =>env-lexical-mode?!

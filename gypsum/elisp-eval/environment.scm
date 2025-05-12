@@ -350,7 +350,8 @@
   (case-lambda
     ((size) (new-elstkfrm size '()))
     ((size bindings)
-     (let ((elstkfrm (make-hash-table string=? string-hash #:weak #f size)))
+     ;; TODO: make use of the `SIZE` argument
+     (let ((elstkfrm (make-hash-table string=? string-hash)))
        (let loop ((bindings bindings))
          (cond
           ((null? bindings) elstkfrm)
@@ -925,7 +926,9 @@
 (define new-empty-obarray
   (case-lambda
     (() (new-empty-obarray *default-obarray-size*))
-    ((size) (make-hash-table string=? string-hash #:weak #f size))
+    ((size)
+     ;; TODO: make use of the `SIZE` argument
+     (make-hash-table string=? string-hash))
     ))
 
 
@@ -1079,7 +1082,7 @@
           ((arg checking ...)
            (if (type-ok? arg)
                (loop checking)
-               (eval-error "wrong type argument" sym arg #:expecting type-sym))
+               (eval-error "wrong type argument" sym arg 'expecting type-sym))
            ))))))
 
 (define (pure*-numbers sym proc)
